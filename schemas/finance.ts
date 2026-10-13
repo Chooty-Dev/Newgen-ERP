@@ -34,6 +34,11 @@ export const createFinanceRecordSchema = z.object({
   customerPhone: z.string().optional().nullable(),
   isDebtRepayment: z.boolean().optional(),
 
+  // Float & Cash Reconciliation Adjustment Fields
+  isOpeningFloat: z.boolean().optional(),
+  isCashAdjustment: z.boolean().optional(),
+  adjustmentType: z.enum(["SURPLUS", "SHORTAGE"]).optional().nullable(),
+
   // Communication Shop Fields
   isCommunicationItem: z.boolean().optional(),
   communicationItem: z.string().optional().nullable(),
@@ -78,6 +83,11 @@ export const updateFinanceRecordSchema = z.object({
   customerName: z.string().optional().nullable(),
   customerPhone: z.string().optional().nullable(),
   isDebtRepayment: z.boolean().optional(),
+
+  // Float & Cash Reconciliation Adjustment Fields
+  isOpeningFloat: z.boolean().optional(),
+  isCashAdjustment: z.boolean().optional(),
+  adjustmentType: z.enum(["SURPLUS", "SHORTAGE"]).optional().nullable(),
 
   // Communication Shop Fields
   isCommunicationItem: z.boolean().optional(),

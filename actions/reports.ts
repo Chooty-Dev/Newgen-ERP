@@ -139,6 +139,8 @@ export async function getSummaryAnalyticsAction(params: AnalyticsParams = {}) {
     let totalTransactions = records.length;
     let totalExpense = 0;
     let totalIncome = 0;
+    let totalDebtRepayments = 0;
+    let totalOpeningFloat = 0;
     let pendingApprovals = 0;
     let approvedAmount = 0;
     let rejectedAmount = 0;
@@ -163,7 +165,11 @@ export async function getSummaryAnalyticsAction(params: AnalyticsParams = {}) {
 
       // Cash flow calculations (Approved or tentative)
       if (rec.status !== "REJECTED") {
-        if (effectiveType === "INCOME") {
+        if (rec.isDebtRepayment) {
+          totalDebtRepayments += amt;
+        } else if (rec.isOpeningFloat) {
+          totalOpeningFloat += amt;
+        } else if (effectiveType === "INCOME") {
           totalIncome += amt;
         } else {
           totalExpense += amt;
@@ -192,7 +198,9 @@ export async function getSummaryAnalyticsAction(params: AnalyticsParams = {}) {
         ? rec.approvedAmount
         : rec.amount;
 
-      if (rec.type === "INCOME") {
+      if (rec.isDebtRepayment || rec.isOpeningFloat) {
+        // Excluded from pure sales timeline
+      } else if (rec.type === "INCOME") {
         timelineMap[dateKey].income += amt;
       } else {
         timelineMap[dateKey].expense += amt;
@@ -266,6 +274,8 @@ export async function getSummaryAnalyticsAction(params: AnalyticsParams = {}) {
         totalTransactions,
         totalExpense,
         totalIncome,
+        totalDebtRepayments,
+        totalOpeningFloat,
         pendingApprovals,
         approvedAmount,
         rejectedAmount,

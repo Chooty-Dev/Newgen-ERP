@@ -281,7 +281,9 @@ export async function getFilteredTransactionsForPdfAction(params: AdminTransacti
         ? resolveShopEffectiveType(r, targetShopIdStr)
         : (r.isCommunicationItem ? "INCOME" : (r.type === "EXPENSE" ? "EXPENSE" : "INCOME"));
 
-      if (effectiveType === "INCOME") {
+      if (r.isDebtRepayment || r.isOpeningFloat) {
+        // Excluded from operational sales income
+      } else if (effectiveType === "INCOME") {
         totalIncome += amt;
         if (r.status === "APPROVED") approvedIncome += appAmt;
       } else {

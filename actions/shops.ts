@@ -10,10 +10,12 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { createShopSchema, updateShopSchema } from "@/schemas/shop";
 import { isAdmin } from "@/lib/rbac";
 import { logAuditEvent } from "@/lib/audit";
+import { Category } from "@/models/Category";
 import {
   getShopCashBalance,
   getShopInterBranchDues,
   getShopCashAuditData,
+  getShopDiscrepancyAuditData,
   recalculateShopRunningBalance,
 } from "@/lib/balance";
 import { revalidatePath } from "next/cache";
@@ -330,5 +332,241 @@ export async function recalculateAndSyncShopCashAction(shopId: string) {
   } catch (error) {
     console.error("Recalculate and sync shop cash error:", error);
     return { success: false, error: "Failed to recalculate and sync shop cash." };
+  }
+}
+
+export async function getShopDiscrepancyAuditAction(
+  shopId: string,
+  countedCash?: number | null,
+  date?: string | null
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized. Please log in." };
+  }
+
+  try {
+    await connectDB();
+    const audit = await getShopDiscrepancyAuditData(shopId, countedCash, date);
+    return { success: true, audit: JSON.parse(JSON.stringify(audit)) };
+  } catch (error: any) {
+    console.error("Get shop discrepancy audit error:", error);
+    return { success: false, error: error.message || "Failed to retrieve discrepancy audit." };
+  }
+}
+
+export async function recordShopOpeningFloatAction(params: {
+  shopId: string;
+  amount: number;
+  date?: string;
+  note?: string;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized. Please log in." };
+  }
+
+  try {
+    await connectDB();
+    const shop = await Shop.findById(params.shopId);
+    if (!shop) return { success: false, error: "Shop not found." };
+
+    if (params.amount < 0) {
+      return { success: false, error: "Opening float amount cannot be negative." };
+    }
+
+    const targetDate = params.date ? new Date(params.date) : new Date();
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Find or create "Daily Opening Float" category
+    let category = await Category.findOne({
+      name: { $regex: /^daily opening float|^opening float/i },
+      isActive: true,
+    });
+    if (!category) {
+      category = await Category.create({
+        name: "Daily Opening Float",
+        description: "Initial cash float kept in the counter drawer at shop opening",
+        type: "INCOME",
+        colorToken: "chart-1",
+        isActive: true,
+      });
+    }
+
+    // Check if an opening float record already exists for today
+    let floatRec = await FinanceRecord.findOne({
+      shop: shop._id,
+      isOpeningFloat: true,
+      date: { $gte: startOfDay, $lte: endOfDay },
+      isDeleted: { $ne: true },
+    });
+
+    const dateStr = targetDate.toISOString().slice(0, 10).replace(/-/g, "");
+
+    if (floatRec) {
+      floatRec.amount = params.amount;
+      floatRec.approvedAmount = params.amount;
+      floatRec.reason = params.note
+        ? `Daily Opening Float - ${shop.name}: ${params.note.trim()}`
+        : `Daily Opening Cash Float - ${shop.name} (${shop.code})`;
+      floatRec.reviewedBy = new mongoose.Types.ObjectId(session.user.id);
+      floatRec.reviewedAt = new Date();
+      await floatRec.save();
+    } else {
+      const billNumber = `FLOAT-${shop.code}-${dateStr}`;
+      // Set time to beginning of the day (00:00:01) so it chronologically appears first
+      const floatTime = new Date(targetDate);
+      floatTime.setHours(0, 0, 1, 0);
+
+      floatRec = await FinanceRecord.create({
+        shop: shop._id,
+        category: category._id,
+        date: floatTime,
+        billNumber,
+        reason: params.note
+          ? `Daily Opening Float - ${shop.name}: ${params.note.trim()}`
+          : `Daily Opening Cash Float - ${shop.name} (${shop.code})`,
+        amount: params.amount,
+        type: "INCOME",
+        paymentMethod: "CASH",
+        isOpeningFloat: true,
+        status: "APPROVED",
+        approvedAmount: params.amount,
+        isLocked: true,
+        createdBy: new mongoose.Types.ObjectId(session.user.id),
+        reviewedBy: new mongoose.Types.ObjectId(session.user.id),
+        reviewedAt: new Date(),
+        reviewRemarks: "Auto-approved shop opening float",
+      });
+    }
+
+    // Recalculate drawer running balance
+    await recalculateShopRunningBalance(shop._id, startOfDay);
+
+    await logAuditEvent({
+      actorId: session.user.id,
+      action: "SET_SHOP_OPENING_FLOAT",
+      targetType: "FinanceRecord",
+      targetId: floatRec._id,
+      metadata: {
+        shopId: shop._id.toString(),
+        shopName: shop.name,
+        amount: params.amount,
+        date: targetDate.toISOString().slice(0, 10),
+      },
+    });
+
+    revalidatePath(`/dashboard/admin/shops/${params.shopId}`);
+    revalidatePath("/dashboard/admin/shops");
+
+    return {
+      success: true,
+      message: `Opening float of LKR ${params.amount.toLocaleString()} registered successfully.`,
+      recordId: floatRec._id.toString(),
+    };
+  } catch (err: any) {
+    console.error("Record opening float error:", err);
+    return { success: false, error: err.message || "Failed to record opening float." };
+  }
+}
+
+export async function recordShopCashAdjustmentAction(params: {
+  shopId: string;
+  amount: number;
+  type: "SURPLUS" | "SHORTAGE";
+  reason?: string;
+  date?: string;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized. Please log in." };
+  }
+
+  try {
+    await connectDB();
+    const shop = await Shop.findById(params.shopId);
+    if (!shop) return { success: false, error: "Shop not found." };
+
+    if (params.amount <= 0) {
+      return { success: false, error: "Adjustment amount must be greater than zero." };
+    }
+
+    const targetDate = params.date ? new Date(params.date) : new Date();
+    const dateStr = targetDate.toISOString().slice(0, 10).replace(/-/g, "");
+    const isSurplus = params.type === "SURPLUS";
+
+    let category = await Category.findOne({
+      name: { $regex: /^cash drawer adjustment|^cash reconciliation adjustment/i },
+      type: isSurplus ? "INCOME" : "EXPENSE",
+      isActive: true,
+    });
+    if (!category) {
+      category = await Category.create({
+        name: isSurplus ? "Cash Drawer Surplus Adjustment" : "Cash Drawer Shortage Adjustment",
+        description: "Reconciliation adjustments for physical till discrepancies",
+        type: isSurplus ? "INCOME" : "EXPENSE",
+        colorToken: isSurplus ? "chart-2" : "chart-5",
+        isActive: true,
+      });
+    }
+
+    const count = await FinanceRecord.countDocuments({
+      shop: shop._id,
+      isCashAdjustment: true,
+    });
+
+    const billNumber = `ADJ-${shop.code}-${dateStr}-${String(count + 1).padStart(2, "0")}`;
+
+    const adjRec = await FinanceRecord.create({
+      shop: shop._id,
+      category: category._id,
+      date: targetDate,
+      billNumber,
+      reason: params.reason
+        ? `Cash ${isSurplus ? "Surplus" : "Shortage"} Adjustment: ${params.reason.trim()}`
+        : `Physical Cash Drawer ${isSurplus ? "Surplus" : "Shortage"} Reconciliation - ${shop.name}`,
+      amount: params.amount,
+      type: isSurplus ? "INCOME" : "EXPENSE",
+      paymentMethod: "CASH",
+      isCashAdjustment: true,
+      adjustmentType: params.type,
+      status: "APPROVED",
+      approvedAmount: params.amount,
+      isLocked: true,
+      createdBy: new mongoose.Types.ObjectId(session.user.id),
+      reviewedBy: new mongoose.Types.ObjectId(session.user.id),
+      reviewedAt: new Date(),
+      reviewRemarks: `Cash reconciliation adjustment recorded by ${(session.user as any).name || "Admin"}`,
+    });
+
+    await recalculateShopRunningBalance(shop._id, targetDate);
+
+    await logAuditEvent({
+      actorId: session.user.id,
+      action: "RECORD_CASH_ADJUSTMENT",
+      targetType: "FinanceRecord",
+      targetId: adjRec._id,
+      metadata: {
+        shopId: shop._id.toString(),
+        amount: params.amount,
+        type: params.type,
+        billNumber,
+      },
+    });
+
+    revalidatePath(`/dashboard/admin/shops/${params.shopId}`);
+    revalidatePath("/dashboard/admin/shops");
+
+    return {
+      success: true,
+      message: `Cash ${params.type.toLowerCase()} adjustment of LKR ${params.amount.toLocaleString()} recorded successfully.`,
+      recordId: adjRec._id.toString(),
+    };
+  } catch (err: any) {
+    console.error("Record cash adjustment error:", err);
+    return { success: false, error: err.message || "Failed to record cash adjustment." };
   }
 }

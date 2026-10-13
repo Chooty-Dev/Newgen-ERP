@@ -26,6 +26,11 @@ export interface IFinanceRecord extends Document {
   customerPhone?: string | null;
   isDebtRepayment?: boolean;
 
+  // Float & Cash Reconciliation Adjustment Fields
+  isOpeningFloat?: boolean;
+  isCashAdjustment?: boolean;
+  adjustmentType?: "SURPLUS" | "SHORTAGE" | null;
+
   // Communication Shop Specific Fields
   isCommunicationItem?: boolean;
   communicationItem?: mongoose.Types.ObjectId | null;
@@ -190,6 +195,21 @@ const FinanceRecordSchema = new Schema<IFinanceRecord>(
       type: Boolean,
       default: false,
       index: true,
+    },
+    isOpeningFloat: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isCashAdjustment: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    adjustmentType: {
+      type: String,
+      enum: ["SURPLUS", "SHORTAGE", null],
+      default: null,
     },
 
     // Communication Shop Fields

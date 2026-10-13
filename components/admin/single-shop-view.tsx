@@ -108,7 +108,9 @@ import {
   ArrowRightLeftIcon,
   WrenchIcon,
   AlertTriangleIcon,
+  ScaleIcon,
 } from "lucide-react";
+import { DiscrepancyManagerDialog } from "./discrepancy-manager-dialog";
 import { toast } from "@/components/ui/toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -258,6 +260,8 @@ export function SingleShopView({
     totalRevenue: number;
     totalCost: number;
     netProfit: number;
+    totalDebtRepayments?: number;
+    cashDebtRepayments?: number;
     totalTransactions: number;
     branchRelatedCount: number;
     nonBranchCount: number;
@@ -272,6 +276,8 @@ export function SingleShopView({
     totalRevenue: 0,
     totalCost: 0,
     netProfit: 0,
+    totalDebtRepayments: 0,
+    cashDebtRepayments: 0,
     totalTransactions: 0,
     branchRelatedCount: 0,
     nonBranchCount: 0,
@@ -738,6 +744,7 @@ export function SingleShopView({
   const [auditLoading, setAuditLoading] = React.useState(false);
   const [syncingCash, setSyncingCash] = React.useState(false);
   const [cashAuditData, setCashAuditData] = React.useState<any | null>(null);
+  const [discrepancyOpen, setDiscrepancyOpen] = React.useState(false);
 
   const handleOpenAudit = async () => {
     setAuditOpen(true);
@@ -857,6 +864,8 @@ export function SingleShopView({
             totalRevenue: commAnalyticsRes.totalRevenue || 0,
             totalCost: commAnalyticsRes.totalCost || 0,
             netProfit: commAnalyticsRes.netProfit || 0,
+            totalDebtRepayments: (commAnalyticsRes as any).totalDebtRepayments || 0,
+            cashDebtRepayments: (commAnalyticsRes as any).cashDebtRepayments || 0,
             totalTransactions: commAnalyticsRes.totalTransactions || 0,
             branchRelatedCount: commAnalyticsRes.branchRelatedCount || 0,
             nonBranchCount: commAnalyticsRes.nonBranchCount || 0,
@@ -2327,15 +2336,26 @@ export function SingleShopView({
                   <Badge variant="outline" className="font-mono text-[10px] bg-background/50 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                     Cash In Locker
                   </Badge>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={handleOpenAudit}
-                    className="text-xs h-7 px-2.5 gap-1.5 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium shadow-xs"
-                  >
-                    <WrenchIcon className="size-3" />
-                    <span>Audit / Debug Cash</span>
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setDiscrepancyOpen(true)}
+                      className="text-xs h-7 px-2.5 gap-1.5 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold shadow-xs"
+                    >
+                      <ScaleIcon className="size-3 text-amber-600 dark:text-amber-400" />
+                      <span>Discrepancy Manager</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={handleOpenAudit}
+                      className="text-xs h-7 px-2 gap-1.5 border-border bg-background hover:bg-muted text-muted-foreground font-medium shadow-xs"
+                    >
+                      <WrenchIcon className="size-3" />
+                      <span>Audit</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -2688,6 +2708,27 @@ export function SingleShopView({
                   Cash in drawer at end of period
                 </div>
               </Card>
+
+              {/* Debt Repayments Collection KPI Card (Excluded from sales) */}
+              {(commAnalytics.totalDebtRepayments || 0) > 0 && (
+                <Card className="border-indigo-500/30 bg-gradient-to-br from-card to-indigo-500/10 p-3.5 shadow-sm col-span-2 sm:col-span-1">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                      <HandCoinsIcon className="size-3.5" />
+                      <span>Debt Collections</span>
+                    </div>
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-indigo-500/30 text-indigo-600 font-mono">
+                      Non-Sales
+                    </Badge>
+                  </div>
+                  <div className="text-xl font-bold font-mono mt-1 text-indigo-600 dark:text-indigo-400">
+                    LKR {Number(commAnalytics.totalDebtRepayments || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                    Excluded from sales revenue (Credit debts paid)
+                  </div>
+                </Card>
+              )}
             </div>
           ) : (
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -5409,15 +5450,29 @@ export function SingleShopView({
                   </div>
                 </div>
 
-                <Button
-                  size="sm"
-                  onClick={handleRecalculateAndSync}
-                  disabled={syncingCash}
-                  className="shrink-0 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                >
-                  <RefreshCwIcon className={`size-3.5 ${syncingCash ? "animate-spin" : ""}`} />
-                  {syncingCash ? "Recalculating..." : "Recalculate & Re-sync"}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setAuditOpen(false);
+                      setDiscrepancyOpen(true);
+                    }}
+                    className="gap-1.5 text-xs border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 font-semibold"
+                  >
+                    <ScaleIcon className="size-3.5 text-amber-600" />
+                    <span>Discrepancy Manager</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleRecalculateAndSync}
+                    disabled={syncingCash}
+                    className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                  >
+                    <RefreshCwIcon className={`size-3.5 ${syncingCash ? "animate-spin" : ""}`} />
+                    {syncingCash ? "Recalculating..." : "Recalculate & Re-sync"}
+                  </Button>
+                </div>
               </div>
 
               {/* 3 Overview Cards */}
@@ -5615,6 +5670,16 @@ export function SingleShopView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Discrepancy Management System Dialog */}
+      <DiscrepancyManagerDialog
+        open={discrepancyOpen}
+        onOpenChange={setDiscrepancyOpen}
+        shopId={shop._id}
+        shopName={shop.name}
+        shopCode={shop.code}
+        onUpdated={fetchShopData}
+      />
     </div>
   );
 }

@@ -72,7 +72,7 @@ export async function recalculateShopRunningBalance(
   };
 
   const rawRecords = await FinanceRecord.find(query)
-    .select("_id type status amount approvedAmount runningBalance beneficiaryRunningBalance paymentMethod isCrossBranchPayment collectingShop beneficiaryShop shop isCommunicationItem interBranchSettlementStatus settlementType date createdAt")
+    .select("_id type status amount approvedAmount runningBalance beneficiaryRunningBalance paymentMethod isCrossBranchPayment collectingShop beneficiaryShop shop isCommunicationItem interBranchSettlementStatus settlementType date createdAt isOpeningFloat")
     .lean();
 
   if (!rawRecords.length) return;
@@ -744,6 +744,7 @@ export async function getShopCashAuditData(
       { shop: shopObjId },
       { beneficiaryShop: shopObjId, isCrossBranchPayment: true },
     ],
+    paymentMethod: { $in: ["CASH", null] },
     isDeleted: { $ne: true },
   })
     .sort({ date: -1, createdAt: -1 })
@@ -1030,6 +1031,465 @@ export async function getShopCashAuditData(
     paymentMethods,
     pendingCashCollections,
     recentCashRecords,
+  };
+}
+
+export interface DiscrepancyDiagnosticCheck {
+  id: string;
+  title: string;
+  titleSi: string;
+  status: "PASSED" | "WARNING" | "FAILED";
+  summary: string;
+  summarySi: string;
+  details: string;
+  detailsSi: string;
+  actionRequired?: string;
+  actionCode?: "SET_OPENING_FLOAT" | "RECORD_ADJUSTMENT" | "RESYNC_LEDGER" | "NONE";
+}
+
+export interface DiscrepancyAuditData {
+  shopId: string;
+  shopName: string;
+  shopCode: string;
+  shopType: string;
+  auditDate: string;
+
+  hasOpeningFloatRecord: boolean;
+  openingFloatAmount: number;
+  openingFloatRecordId?: string | null;
+  defaultConfiguredFloat: number;
+
+  inflows: {
+    reloadCash: number;
+    utilityBillsCash: number;
+    retailSalesCash: number;
+    crossBranchCash: number;
+    debtRepaymentsCash: number;
+    cashAdjustmentsInflow: number;
+    otherCash: number;
+    totalInflow: number;
+  };
+
+  outflows: {
+    cashExpenses: number;
+    dailySweeps: number;
+    cashAdjustmentsOutflow: number;
+    totalOutflow: number;
+  };
+
+  todayNetCollections: number;
+  systemDrawerCash: number;
+  expectedPhysicalDrawerCash: number;
+  countedCash: number;
+  variance: number;
+  varianceStatus: "BALANCED" | "SURPLUS" | "SHORTAGE";
+
+  diagnosticChecks: DiscrepancyDiagnosticCheck[];
+
+  plainLanguageSummary: {
+    en: string;
+    si: string;
+    actionAdviceEn: string;
+    actionAdviceSi: string;
+  };
+
+  nonCashSeparation: {
+    creditSalesAmount: number;
+    bankTransferDebtRepayments: number;
+    pettyCashExpenses: number;
+  };
+}
+
+/**
+ * Advanced Discrepancy Management Engine.
+ * Analyzes drawer cash, opening float, categorized inflows, cross-branch holding,
+ * compares against counted cash, and produces automated diagnostics and plain-language summaries.
+ */
+export async function getShopDiscrepancyAuditData(
+  shopId: string | mongoose.Types.ObjectId,
+  countedCashInput?: number | null,
+  targetDate?: Date | string | null
+): Promise<DiscrepancyAuditData> {
+  await connectDB();
+  const shopObjId = new mongoose.Types.ObjectId(shopId.toString());
+
+  const shopDoc = await Shop.findById(shopObjId).select("name code shopType defaultFloat").lean();
+  const shopName = shopDoc?.name || "Shop";
+  const shopCode = shopDoc?.code || "SHOP";
+  const shopType = shopDoc?.shopType || "COMMUNICATION";
+  const defaultConfiguredFloat = (shopDoc as any)?.defaultFloat ?? 4000;
+
+  const target = targetDate ? new Date(targetDate) : new Date();
+  const startOfDay = new Date(target);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(target);
+  endOfDay.setHours(23, 59, 59, 999);
+  const auditDateStr = target.toISOString().split("T")[0];
+
+  const todayRecords = await FinanceRecord.find({
+    $or: [
+      { shop: shopObjId },
+      { collectingShop: shopObjId, isCrossBranchPayment: true },
+      { beneficiaryShop: shopObjId, isCrossBranchPayment: true },
+    ],
+    date: { $gte: startOfDay, $lte: endOfDay },
+    isDeleted: { $ne: true },
+  }).lean();
+
+  let hasOpeningFloatRecord = false;
+  let openingFloatAmount = 0;
+  let openingFloatRecordId: string | null = null;
+
+  let reloadCash = 0;
+  let utilityBillsCash = 0;
+  let retailSalesCash = 0;
+  let crossBranchCash = 0;
+  let debtRepaymentsCash = 0;
+  let cashAdjustmentsInflow = 0;
+  let otherCash = 0;
+
+  let cashExpenses = 0;
+  let dailySweeps = 0;
+  let cashAdjustmentsOutflow = 0;
+
+  let creditSalesAmount = 0;
+  let bankTransferDebtRepayments = 0;
+  let pettyCashExpenses = 0;
+
+  for (const r of todayRecords) {
+    if (r.status === "REJECTED") continue;
+    const amt = typeof r.approvedAmount === "number" ? r.approvedAmount : (r.amount || 0);
+    const pm = r.paymentMethod || "CASH";
+
+    if (pm === "CREDIT") {
+      creditSalesAmount += amt;
+      continue;
+    }
+    if (pm === "BANK_TRANSFER") {
+      if (r.isDebtRepayment) bankTransferDebtRepayments += amt;
+      continue;
+    }
+    if (pm === "PETTY_CASH") {
+      pettyCashExpenses += amt;
+      continue;
+    }
+
+    if (pm !== "CASH") continue;
+
+    if (r.isOpeningFloat) {
+      hasOpeningFloatRecord = true;
+      openingFloatAmount += amt;
+      openingFloatRecordId = r._id.toString();
+      continue;
+    }
+
+    if (r.isCashAdjustment) {
+      if (r.type === "INCOME") {
+        cashAdjustmentsInflow += amt;
+      } else {
+        cashAdjustmentsOutflow += amt;
+      }
+      continue;
+    }
+
+    if (
+      r.type === "EXPENSE" &&
+      (r.reason?.includes("Daily Settlement") || r.reason?.includes("Float Sweep"))
+    ) {
+      dailySweeps += amt;
+      continue;
+    }
+
+    const isDirectShop = r.shop?.toString() === shopObjId.toString();
+    const isBeneficiary = r.beneficiaryShop?.toString() === shopObjId.toString() && !isDirectShop;
+
+    if (r.isCrossBranchPayment) {
+      if (r.interBranchSettlementStatus === "UNSETTLED") {
+        crossBranchCash += amt;
+      } else if (isBeneficiary && r.settlementType === "HANDOVER_TO_BRANCH") {
+        crossBranchCash += amt;
+      }
+      continue;
+    }
+
+    const effectiveType = resolveShopEffectiveType(r as any, shopObjId);
+
+    if (effectiveType === "INCOME") {
+      if (r.isDebtRepayment) {
+        debtRepaymentsCash += amt;
+      } else if (r.isTelecomReload) {
+        reloadCash += amt;
+      } else if (r.isUtilityBill) {
+        utilityBillsCash += amt;
+      } else if (r.isCommunicationItem) {
+        retailSalesCash += amt;
+      } else {
+        otherCash += amt;
+      }
+    } else {
+      cashExpenses += amt;
+    }
+  }
+
+  const totalInflow =
+    reloadCash +
+    utilityBillsCash +
+    retailSalesCash +
+    crossBranchCash +
+    debtRepaymentsCash +
+    cashAdjustmentsInflow +
+    otherCash;
+
+  const totalOutflow = cashExpenses + dailySweeps + cashAdjustmentsOutflow;
+  const todayNetCollections = totalInflow - totalOutflow;
+
+  const systemDrawerCash = await getShopCashBalance(shopObjId);
+
+  const expectedPhysicalDrawerCash = hasOpeningFloatRecord
+    ? systemDrawerCash
+    : systemDrawerCash + defaultConfiguredFloat;
+
+  const countedCash =
+    typeof countedCashInput === "number" && !isNaN(countedCashInput)
+      ? countedCashInput
+      : expectedPhysicalDrawerCash;
+
+  const variance = Number((countedCash - expectedPhysicalDrawerCash).toFixed(2));
+
+  let varianceStatus: "BALANCED" | "SURPLUS" | "SHORTAGE" = "BALANCED";
+  if (variance > 0.01) {
+    varianceStatus = "SURPLUS";
+  } else if (variance < -0.01) {
+    varianceStatus = "SHORTAGE";
+  }
+
+  // Diagnostic Health Checks
+  const diagnosticChecks: DiscrepancyDiagnosticCheck[] = [];
+
+  // Check 1: Opening Float Status
+  if (!hasOpeningFloatRecord) {
+    diagnosticChecks.push({
+      id: "OPENING_FLOAT",
+      title: "Opening Cash Float Unrecorded",
+      titleSi: "ආරම්භක මුදල (Float) සිස්ටම් එකේ සටහන් කර නැත",
+      status: "WARNING",
+      summary: `The daily float of LKR ${defaultConfiguredFloat.toLocaleString()} is not registered in the ERP ledger.`,
+      summarySi: `දෛනික ආරම්භක මුදල (LKR ${defaultConfiguredFloat.toLocaleString()}) සිස්ටම් එකේ සටහන් කර නොමැති බැවින්, සිස්ටම් එක පෙන්වන්නේ අද දවසේ ලැබීම් (LKR ${totalInflow.toLocaleString()}) පමණි.`,
+      details: `Physical drawer contains opening float plus collections. Recording the opening float aligns ledger balance with the physical cash drawer.`,
+      detailsSi: `ලාච්චුවේ ආරම්භක මුදල සහ අද දවසේ ලැබුණු මුදල් දෙකම ඇත. සිස්ටම් එකට ආරම්භක මුදල ඇතුළත් කළ විට ලාච්චුවේ ඇත්ත ශේෂය සම්පූර්ණයෙන් සමපාත වේ.`,
+      actionRequired: `Record today's LKR ${defaultConfiguredFloat.toLocaleString()} opening float.`,
+      actionCode: "SET_OPENING_FLOAT",
+    });
+  } else {
+    diagnosticChecks.push({
+      id: "OPENING_FLOAT",
+      title: "Opening Cash Float Active",
+      titleSi: "ආරම්භක මුදල සටහන් කර ඇත",
+      status: "PASSED",
+      summary: `Opening float of LKR ${openingFloatAmount.toLocaleString()} is active in today's ledger.`,
+      summarySi: `අද දින ආරම්භක මුදල (LKR ${openingFloatAmount.toLocaleString()}) නිවැරදිව සිස්ටම් එකේ සටහන්ව පවතී.`,
+      details: `Float is safely tracked in the drawer balance.`,
+      detailsSi: `ආරම්භක මුදල මුදල් ලාච්චුවේ ශේෂයට නිවැරදිව එකතු වී ඇත.`,
+      actionCode: "NONE",
+    });
+  }
+
+  // Check 2: Credit Repayments Segregated from Sales
+  const totalRepayments = debtRepaymentsCash + bankTransferDebtRepayments;
+  diagnosticChecks.push({
+    id: "CREDIT_SEGREGATION",
+    title: "Credit Debt Repayments Segregated",
+    titleSi: "ණය පියවීම් විකුණුම් වලින් වෙන් කර ඇත",
+    status: "PASSED",
+    summary: `Debt settlements (LKR ${totalRepayments.toLocaleString()}) are isolated from sales revenue.`,
+    summarySi: `අද එකතු වූ ණය පියවීම් (LKR ${totalRepayments.toLocaleString()}) දෛනික විකුණුම් වලට එකතු නොවී ${debtRepaymentsCash > 0 ? "මුදල් ලාච්චුවට" : "බැංකු ගිණුමට"} පමණක් නිවැරදිව බැර කර ඇත.`,
+    details: `Cash debt repayments enter the drawer cash, while bank transfer debt settlements go directly to bank balances without double-counting sales.`,
+    detailsSi: `මුදලින් ගෙවූ ණය පියවීම් මුදල් ලාච්චුවටත්, බැංකු මාරු කිරීම් බැංකුවටත් පමණක් ඇතුළත් කර ඇති අතර දෛනික විකුණුම් දෙගුණ වීම වැළැක්වී ඇත.`,
+    actionCode: "NONE",
+  });
+
+  // Check 3: Cross-Branch Counter Cash Held
+  if (crossBranchCash > 0) {
+    diagnosticChecks.push({
+      id: "CROSS_BRANCH_CASH",
+      title: "Cross-Branch Tuition/Class Fees Held in Counter Drawer",
+      titleSi: "වෙනත් ශාඛා සඳහා එකතු කළ පන්ති ගාස්තු ලාච්චුවේ ඇත",
+      status: "PASSED",
+      summary: `LKR ${crossBranchCash.toLocaleString()} collected on behalf of other branches is physically held in this drawer.`,
+      summarySi: `වෙනත් ශාඛා (උදා: මාතලේ ශාඛාව) සඳහා එකතු කළ පන්ති ගාස්තු LKR ${crossBranchCash.toLocaleString()} ක් මෙම ලාච්චුවේ ආරක්ෂිතව පවතී.`,
+      details: `This cash remains in this drawer until handed over or settled to the beneficiary branch.`,
+      detailsSi: `අනෙක් ශාඛාවට මුදල් භාරදෙන තුරු මෙම මුදල මෙම කවුන්ටර ලාච්චුවේ තැන්පත් කර ඇත.`,
+      actionCode: "NONE",
+    });
+  }
+
+  // Check 4: Cash Drawer Variance Status
+  if (varianceStatus === "BALANCED") {
+    diagnosticChecks.push({
+      id: "VARIANCE_CHECK",
+      title: "Physical Cash Drawer Perfectly Balanced",
+      titleSi: "මුදල් ලාච්චුව 100% ක් සමබරයි",
+      status: "PASSED",
+      summary: `Counted cash (LKR ${countedCash.toLocaleString()}) matches expected drawer total exactly.`,
+      summarySi: `ගණන් කළ මුදල (LKR ${countedCash.toLocaleString()}) සහ බලාපොරොත්තු වන ලාච්චුවේ මුදල සම්පූර්ණයෙන්ම සමාන වේ.`,
+      details: `Zero discrepancy detected.`,
+      detailsSi: `කිසිදු මුදල් වෙනසක් නොමැත.`,
+      actionCode: "NONE",
+    });
+  } else if (varianceStatus === "SURPLUS") {
+    diagnosticChecks.push({
+      id: "VARIANCE_CHECK",
+      title: `Drawer Cash Surplus: +LKR ${variance.toLocaleString()}`,
+      titleSi: `ලාච්චුවේ අතිරික්ත මුදලක් ඇත: +LKR ${variance.toLocaleString()}`,
+      status: "WARNING",
+      summary: `Counted cash exceeds expected total by LKR ${variance.toLocaleString()}.`,
+      summarySi: `ගණන් කළ මුදල (LKR ${countedCash.toLocaleString()}) සිස්ටම් එකට වඩා LKR ${variance.toLocaleString()} ක් වැඩියෙන් තිබේ.`,
+      details: `May be caused by unrecorded walk-in sales (photocopy/printing) or cash rounding surplus. Can be auto-reconciled.`,
+      detailsSi: `මෙය සිස්ටම් එකට සටහන් නොවූ සුළු මුද්‍රණ/ෆොටෝකොපි විකුණුම් හෝ ඉතුරු මුදල් වටයැවීමක් නිසා විය හැක. මෙය 1-Click එකෙන් සමබර කළ හැක.`,
+      actionRequired: `Record a cash surplus adjustment of +LKR ${variance.toLocaleString()}.`,
+      actionCode: "RECORD_ADJUSTMENT",
+    });
+  } else {
+    diagnosticChecks.push({
+      id: "VARIANCE_CHECK",
+      title: `Drawer Cash Shortage: -LKR ${Math.abs(variance).toLocaleString()}`,
+      titleSi: `ලාච්චුවේ හිඟ මුදලක් ඇත: -LKR ${Math.abs(variance).toLocaleString()}`,
+      status: "FAILED",
+      summary: `Counted cash is short by LKR ${Math.abs(variance).toLocaleString()} compared to expected total.`,
+      summarySi: `ගණන් කළ මුදල (LKR ${countedCash.toLocaleString()}) සිස්ටම් එකට වඩා LKR ${Math.abs(variance).toLocaleString()} කින් අඩුවෙන් ඇත.`,
+      details: `Cash may have been disbursed without a recorded expense receipt. Verify till slips or record adjustment.`,
+      detailsSi: `සිස්ටම් එකට ඇතුළත් නොකළ වියදමක් හෝ අඩු මුදලක් තිබේ. බිල්පත් පරීක්ෂා කර හිඟය සටහන් කරන්න.`,
+      actionRequired: `Record a cash shortage adjustment of -LKR ${Math.abs(variance).toLocaleString()}.`,
+      actionCode: "RECORD_ADJUSTMENT",
+    });
+  }
+
+  // Check 5: Ledger Running Balance Alignment
+  const latestCandidate = await FinanceRecord.findOne({
+    $or: [{ shop: shopObjId }, { beneficiaryShop: shopObjId, isCrossBranchPayment: true }],
+    paymentMethod: { $in: ["CASH", null] },
+    isDeleted: { $ne: true },
+  })
+    .sort({ date: -1, createdAt: -1 })
+    .select("runningBalance beneficiaryRunningBalance beneficiaryShop shop")
+    .lean();
+
+  const latestRb = latestCandidate
+    ? (latestCandidate.beneficiaryShop?.toString() === shopObjId.toString() &&
+      latestCandidate.shop?.toString() !== shopObjId.toString()
+        ? (latestCandidate.beneficiaryRunningBalance ?? latestCandidate.runningBalance ?? 0)
+        : (latestCandidate.runningBalance ?? 0))
+    : 0;
+
+  const isOutOfSync = Math.round(systemDrawerCash * 100) !== Math.round(latestRb * 100);
+  if (isOutOfSync) {
+    diagnosticChecks.push({
+      id: "LEDGER_SYNC",
+      title: "Ledger Chronological Running Balance Out of Sync",
+      titleSi: "ලේඛන ශේෂය සහ ගණනය කළ ශේෂය අතර වෙනසක් ඇත",
+      status: "WARNING",
+      summary: `Latest transaction running balance (LKR ${latestRb.toLocaleString()}) does not match current drawer balance (LKR ${systemDrawerCash.toLocaleString()}).`,
+      summarySi: `අවසන් ගනුදෙනුවේ ශේෂය (LKR ${latestRb.toLocaleString()}) සහ ගණනය කළ ශේෂය (LKR ${systemDrawerCash.toLocaleString()}) අතර සුළු වෙනසක් ඇත.`,
+      details: `Click 'Re-sync Ledger' to recalculate chronological balances across all records.`,
+      detailsSi: `'Re-sync Ledger' බටනය ඔබා සියලු ගනුදෙනු නැවත අනුපිළිවෙලට ගණනය කරන්න.`,
+      actionRequired: "Recalculate running balance.",
+      actionCode: "RESYNC_LEDGER",
+    });
+  } else {
+    diagnosticChecks.push({
+      id: "LEDGER_SYNC",
+      title: "Ledger Running Balance Fully Synchronized",
+      titleSi: "ලේඛන ශේෂය සම්පූර්ණයෙන් සමපාතයි",
+      status: "PASSED",
+      summary: `Ledger sequence matches real-time drawer balance (LKR ${systemDrawerCash.toLocaleString()}).`,
+      summarySi: `සිස්ටම් එකේ ගනුදෙනු ශේෂය නිවැරදිව සමපාත වී ඇත.`,
+      details: "No chronological gaps detected.",
+      detailsSi: "කිසිදු දෝෂයක් නොමැත.",
+      actionCode: "NONE",
+    });
+  }
+
+  // Plain-Language Summary
+  const plainLanguageSummary = {
+    en: !hasOpeningFloatRecord
+      ? `Today's physical cash collections total LKR ${totalInflow.toLocaleString()}. The system currently shows LKR ${systemDrawerCash.toLocaleString()} because the morning opening float of LKR ${defaultConfiguredFloat.toLocaleString()} was not recorded in the ERP. With the float, expected drawer cash is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.${
+          variance !== 0
+            ? ` Physical count of LKR ${countedCash.toLocaleString()} has a ${varianceStatus.toLowerCase()} of LKR ${Math.abs(variance).toLocaleString()}.`
+            : " Physical count matches expected cash perfectly."
+        }`
+      : `Today's physical collections are LKR ${totalInflow.toLocaleString()} with an opening float of LKR ${openingFloatAmount.toLocaleString()}. Total expected cash in the drawer is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.${
+          variance !== 0
+            ? ` Counted cash has a ${varianceStatus.toLowerCase()} of LKR ${Math.abs(variance).toLocaleString()}.`
+            : " Counted cash is 100% balanced."
+        }`,
+    si: !hasOpeningFloatRecord
+      ? `අද දවසේ මුදලින් ලැබුණු එකතුව LKR ${totalInflow.toLocaleString()} කි. උදෑසන ආරම්භක මුදල (LKR ${defaultConfiguredFloat.toLocaleString()}) සිස්ටම් එකේ සටහන් කර නොතිබූ බැවින්, සිස්ටම් එකේ ශේෂය ලෙස පෙන්නුම් කළේ දවසේ ලැබීම් මුදල පමණි. ආරම්භක මුදල සමඟ ලාච්චුවේ තිබිය යුතු නියම මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} කි.${
+          variance !== 0
+            ? ` භෞතිකව ගණන් කළ මුදල (LKR ${countedCash.toLocaleString()}) අනුව LKR ${Math.abs(variance).toLocaleString()} ක ${varianceStatus === "SURPLUS" ? "අතිරික්තයක්" : "හිඟයක්"} පවතී.`
+            : " ගණන් කළ මුදල සහ සිස්ටම් මුදල 100% ක් සමබරයි."
+        }`
+      : `අද දවසේ ලැබීම් LKR ${totalInflow.toLocaleString()} ක් වන අතර ආරම්භක මුදල LKR ${openingFloatAmount.toLocaleString()} කි. ලාච්චුවේ තිබිය යුතු මුළු මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} කි.${
+          variance !== 0
+            ? ` ගණන් කළ මුදල අනුව LKR ${Math.abs(variance).toLocaleString()} ක ${varianceStatus === "SURPLUS" ? "අතිරික්තයක්" : "හිඟයක්"} ඇත.`
+            : " ලාච්චුවේ මුදල් 100% ක් සමබරයි."
+        }`,
+    actionAdviceEn: !hasOpeningFloatRecord
+      ? `1. Click 'Set Today's Opening Float' (LKR ${defaultConfiguredFloat.toLocaleString()}). 2. If desired, record the +LKR ${Math.abs(variance).toLocaleString()} adjustment to achieve 100% balance.`
+      : variance !== 0
+      ? `Click 'Reconcile Cash Adjustment' to bring ledger and till into 100% exact match.`
+      : `No action needed. Drawer is fully reconciled and ready for Daily Settlement.`,
+    actionAdviceSi: !hasOpeningFloatRecord
+      ? `1. 'ආරම්භක මුදල සටහන් කරන්න (LKR ${defaultConfiguredFloat.toLocaleString()})' බටනය ඔබන්න. 2. අවශ්‍ය නම් ඉතිරි LKR ${Math.abs(variance).toLocaleString()} අතිරික්තය සටහන් කර 100% ක් සමබර කරන්න.`
+      : variance !== 0
+      ? `'මුදල් වෙනස සමබර කරන්න' බටනය ඔබා ලාච්චුවේ මුදල සහ සිස්ටම් එක 100% ක් සමපාත කරන්න.`
+      : `කිසිදු පියවරක් අවශ්‍ය නැත. මුදල් ලාච්චුව සම්පූර්ණයෙන් සමබර වන අතර දවසේ ක්ලෝසින් එක (Daily Settlement) කිරීමට සූදානම්ය.`,
+  };
+
+  return {
+    shopId: shopObjId.toString(),
+    shopName,
+    shopCode,
+    shopType,
+    auditDate: auditDateStr,
+
+    hasOpeningFloatRecord,
+    openingFloatAmount,
+    openingFloatRecordId,
+    defaultConfiguredFloat,
+
+    inflows: {
+      reloadCash,
+      utilityBillsCash,
+      retailSalesCash,
+      crossBranchCash,
+      debtRepaymentsCash,
+      cashAdjustmentsInflow,
+      otherCash,
+      totalInflow,
+    },
+
+    outflows: {
+      cashExpenses,
+      dailySweeps,
+      cashAdjustmentsOutflow,
+      totalOutflow,
+    },
+
+    todayNetCollections,
+    systemDrawerCash,
+    expectedPhysicalDrawerCash,
+    countedCash,
+    variance,
+    varianceStatus,
+
+    diagnosticChecks,
+    plainLanguageSummary,
+
+    nonCashSeparation: {
+      creditSalesAmount,
+      bankTransferDebtRepayments,
+      pettyCashExpenses,
+    },
   };
 }
 

@@ -3,8 +3,13 @@
  * Does not import any server-only modules (mongoose, mongodb, etc.).
  */
 
-export function getRecordExactDate(r: { date: Date | string; createdAt?: Date | string }): Date {
+export function getRecordExactDate(r: { date: Date | string; createdAt?: Date | string; isOpeningFloat?: boolean }): Date {
   const d = new Date(r.date);
+  if (r.isOpeningFloat) {
+    const start = new Date(d);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
   const c = r.createdAt ? new Date(r.createdAt) : d;
   if (d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0) {
     return d;

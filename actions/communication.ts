@@ -586,6 +586,8 @@ export async function getTelecomSalesAnalyticsAction(params: {
       isDeleted: { $ne: true },
       date: { $gte: start, $lte: end },
       shop: shop._id,
+      isDebtRepayment: { $ne: true },
+      isOpeningFloat: { $ne: true },
       $nor: [
         { isCrossBranchPayment: true, isCommunicationItem: { $ne: true }, beneficiaryShop: { $ne: shop._id } },
         { isRelatedToBranch: true, isCommunicationItem: { $ne: true }, relatedBranch: { $ne: shop._id } },
@@ -763,11 +765,46 @@ export async function getTelecomSalesAnalyticsAction(params: {
       console.error("Error computing communication period cash flow:", err);
     }
 
+    // Fetch debt repayments during this period to display separately from sales revenue
+    let totalDebtRepayments = 0;
+    let cashDebtRepayments = 0;
+    try {
+      const debtAgg = await FinanceRecord.aggregate([
+        {
+          $match: {
+            shop: shop._id,
+            isDeleted: { $ne: true },
+            status: { $ne: "REJECTED" },
+            isDebtRepayment: true,
+            date: { $gte: start, $lte: end },
+          },
+        },
+        {
+          $group: {
+            _id: "$paymentMethod",
+            total: {
+              $sum: {
+                $cond: [{ $ne: ["$approvedAmount", null] }, "$approvedAmount", "$amount"],
+              },
+            },
+          },
+        },
+      ]);
+      for (const d of debtAgg) {
+        totalDebtRepayments += d.total || 0;
+        if (d._id === "CASH") cashDebtRepayments += d.total || 0;
+      }
+    } catch (debtErr) {
+      console.error("Error aggregating debt repayments:", debtErr);
+    }
+
     return {
       success: true,
       totalRevenue,
       totalCost,
       netProfit,
+      totalDebtRepayments,
+      cashDebtRepayments,
       totalTransactions: records.length,
       branchRelatedCount,
       nonBranchCount,

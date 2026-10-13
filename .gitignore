@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+scripts/analyze_ac_102.ts
+scripts/check_ac_history.ts
+scripts/check_audit_logs.ts
+scripts/check_cats.ts
+scripts/check_days.ts
+scripts/check_oct11_oct12.ts
+scripts/check_reloads_detail.ts
+scripts/check_settle_period.ts
+scripts/check_settle_rec.ts
+scripts/find_orphan_settles.ts
+scripts/inspect_oct13.ts

@@ -8,6 +8,7 @@ export interface IShop extends Document {
   address?: string;
   shopType: "STANDARD" | "COMMUNICATION" | "INVENTORY";
   isActive: boolean;
+  defaultFloat?: number;
   createdBy?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
@@ -47,6 +48,10 @@ const ShopSchema = new Schema<IShop>(
       type: Boolean,
       default: true,
       index: true,
+    },
+    defaultFloat: {
+      type: Number,
+      default: 4000,
     },
     createdBy: {
       type: Schema.Types.ObjectId,
