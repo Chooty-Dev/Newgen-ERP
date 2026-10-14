@@ -221,10 +221,81 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
       destFinanceRecordId = bankRecord._id;
     }
 
-    // 2. Debit the shop's physical cash drawer
+    // 2. Manage the shop's physical cash drawer:
+    // When retainedFloat > 0:
+    // - Debit shop drawer by (transferAmount + retainedFloat)
+    // - Credit shop drawer with retained opening float (+retainedFloat, isOpeningFloat: true)
+    // Net cash transferred out of drawer = transferAmount (credited to Petty Cash / Bank)
+    // Retained float in drawer = retainedFloat
+    // Opening float record is formally saved, approved, and active for this date!
     const destName = destinationType === "PETTY_CASH"
       ? "Central Petty Cash"
       : `${bankDoc.bankName} (${bankDoc.accountNumber})`;
+
+    let floatRec: any = null;
+    let shopExpenseAmount = transferAmount;
+
+    if (retainedFloat > 0) {
+      shopExpenseAmount = transferAmount + retainedFloat;
+
+      let floatCategory = await Category.findOne({
+        name: { $regex: /^daily opening float|^opening float/i },
+        isActive: true,
+      });
+      if (!floatCategory) {
+        floatCategory = await Category.create({
+          name: "Daily Opening Float",
+          description: "Initial cash float kept in the counter drawer at shop opening",
+          type: "INCOME",
+          colorToken: "chart-1",
+          isActive: true,
+        });
+      }
+
+      const startOfDay = new Date(settlementDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(settlementDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const dateStr = settlementDate.toISOString().slice(0, 10).replace(/-/g, "");
+      const floatTime = new Date(settlementDate);
+      floatTime.setHours(0, 0, 1, 0);
+
+      floatRec = await FinanceRecord.findOne({
+        shop: shop._id,
+        isOpeningFloat: true,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        isDeleted: { $ne: true },
+      });
+
+      if (floatRec) {
+        floatRec.amount = retainedFloat;
+        floatRec.approvedAmount = retainedFloat;
+        floatRec.reason = `Daily Opening Cash Float - ${shop.name} (${shop.code}) [Retained via Settlement ${generatedRef}]`;
+        floatRec.reviewedBy = session.user.id;
+        floatRec.reviewedAt = new Date();
+        await floatRec.save();
+      } else {
+        floatRec = await FinanceRecord.create({
+          shop: shop._id,
+          category: floatCategory._id,
+          date: floatTime,
+          billNumber: `FLOAT-${shop.code}-${dateStr}`,
+          reason: `Daily Opening Cash Float - ${shop.name} (${shop.code}) [Retained via Settlement ${generatedRef}]`,
+          amount: retainedFloat,
+          approvedAmount: retainedFloat,
+          type: "INCOME",
+          paymentMethod: "CASH",
+          isOpeningFloat: true,
+          status: "APPROVED",
+          isLocked: true,
+          createdBy: session.user.id,
+          reviewedBy: session.user.id,
+          reviewedAt: new Date(),
+          reviewRemarks: `Auto-recorded opening float from daily settlement (${generatedRef})`,
+        });
+      }
+    }
 
     const shopExpenseRecord = await FinanceRecord.create({
       date: settlementDate,
@@ -233,8 +304,8 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
       paymentMethod: "CASH",
       billNumber: generatedRef,
       reason: `Daily Cash Float Settlement - Retained Float: LKR ${retainedFloat.toLocaleString()} | Swept to ${destName}${note ? ` | Note: ${note}` : ""}`,
-      amount: transferAmount,
-      approvedAmount: transferAmount,
+      amount: shopExpenseAmount,
+      approvedAmount: shopExpenseAmount,
       type: "EXPENSE",
       status: "APPROVED",
       reviewedBy: session.user.id,
@@ -254,6 +325,7 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
       bankAccount: bankDoc ? bankDoc._id : null,
       financeRecord: shopExpenseRecord._id,
       destinationFinanceRecord: destFinanceRecordId,
+      openingFloatFinanceRecord: floatRec ? floatRec._id : null,
       reference: generatedRef,
       note: note || "",
       settledBy: session.user.id,

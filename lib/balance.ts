@@ -1,6 +1,7 @@
 import connectDB from "./mongodb";
 import { FinanceRecord } from "@/models/FinanceRecord";
 import { Shop } from "@/models/Shop";
+import { DailySettlement } from "@/models/DailySettlement";
 import mongoose from "mongoose";
 
 import { getRecordExactDate, getRecordExactTimestamp } from "./dateUtils";
@@ -1062,6 +1063,7 @@ export interface DiscrepancyAuditData {
   inflows: {
     reloadCash: number;
     utilityBillsCash: number;
+    reloadsAndBillsCash: number;
     retailSalesCash: number;
     crossBranchCash: number;
     debtRepaymentsCash: number;
@@ -1214,10 +1216,16 @@ export async function getShopDiscrepancyAuditData(
 
     const effectiveType = resolveShopEffectiveType(r as any, shopObjId);
 
+    const isTelecomItem =
+      Boolean(r.isTelecomReload) ||
+      (typeof r.itemCode === "string" && /^[DMH]\d+/i.test(r.itemCode)) ||
+      (typeof r.itemName === "string" &&
+        /blaster|package|combo|tik tok|reload|dialog|mobitel|airtel|hutch/i.test(r.itemName));
+
     if (effectiveType === "INCOME") {
       if (r.isDebtRepayment) {
         debtRepaymentsCash += amt;
-      } else if (r.isTelecomReload) {
+      } else if (isTelecomItem) {
         reloadCash += amt;
       } else if (r.isUtilityBill) {
         utilityBillsCash += amt;
@@ -1231,6 +1239,8 @@ export async function getShopDiscrepancyAuditData(
     }
   }
 
+  const reloadsAndBillsCash = reloadCash + utilityBillsCash;
+
   const totalInflow =
     reloadCash +
     utilityBillsCash +
@@ -1243,11 +1253,28 @@ export async function getShopDiscrepancyAuditData(
   const totalOutflow = cashExpenses + dailySweeps + cashAdjustmentsOutflow;
   const todayNetCollections = totalInflow - totalOutflow;
 
+  if (!hasOpeningFloatRecord) {
+    const settleDoc = await DailySettlement.findOne({
+      shop: shopObjId,
+      date: { $gte: startOfDay, $lte: endOfDay },
+    }).lean();
+
+    if (settleDoc && settleDoc.retainedFloat > 0) {
+      hasOpeningFloatRecord = true;
+      openingFloatAmount = settleDoc.retainedFloat;
+      if (settleDoc.openingFloatFinanceRecord) {
+        openingFloatRecordId = settleDoc.openingFloatFinanceRecord.toString();
+      }
+    }
+  }
+
   const systemDrawerCash = await getShopCashBalance(shopObjId);
 
   const expectedPhysicalDrawerCash = hasOpeningFloatRecord
     ? systemDrawerCash
-    : systemDrawerCash + defaultConfiguredFloat;
+    : (systemDrawerCash >= defaultConfiguredFloat
+        ? systemDrawerCash
+        : systemDrawerCash + defaultConfiguredFloat);
 
   const countedCash =
     typeof countedCashInput === "number" && !isNaN(countedCashInput)
@@ -1460,6 +1487,7 @@ export async function getShopDiscrepancyAuditData(
     inflows: {
       reloadCash,
       utilityBillsCash,
+      reloadsAndBillsCash,
       retailSalesCash,
       crossBranchCash,
       debtRepaymentsCash,

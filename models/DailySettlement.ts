@@ -11,6 +11,7 @@ export interface IDailySettlement extends Document {
   bankAccount?: mongoose.Types.ObjectId | null;
   financeRecord?: mongoose.Types.ObjectId | null;
   destinationFinanceRecord?: mongoose.Types.ObjectId | null;
+  openingFloatFinanceRecord?: mongoose.Types.ObjectId | null;
   reference?: string;
   note?: string;
   settledBy: mongoose.Types.ObjectId;
@@ -63,6 +64,11 @@ const DailySettlementSchema = new Schema<IDailySettlement>(
       default: null,
     },
     destinationFinanceRecord: {
+      type: Schema.Types.ObjectId,
+      ref: "FinanceRecord",
+      default: null,
+    },
+    openingFloatFinanceRecord: {
       type: Schema.Types.ObjectId,
       ref: "FinanceRecord",
       default: null,

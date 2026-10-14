@@ -980,6 +980,17 @@ export async function createCommunicationSaleBatchAction(payload: {
         }
       }
 
+      if (!isTelecomReload) {
+        const codeUpper = (item.itemCode || "").trim().toUpperCase();
+        const nameUpper = ((item as any).itemName || (item as any).name || "").toUpperCase();
+        if (/^[DMH]\d+/i.test(codeUpper) || /blaster|package|combo|tik tok/i.test(nameUpper)) {
+          isTelecomReload = true;
+          if (codeUpper.startsWith("D")) telecomOperator = "DIALOG";
+          else if (codeUpper.startsWith("M")) telecomOperator = "MOBITEL";
+          else if (codeUpper.startsWith("H")) telecomOperator = "HUTCH";
+        }
+      }
+
       // If it's a telecom reload, compute commission earned and set base wholesale cost
       let commissionEarned = 0;
       let telecomType: "CUSTOM" | "PACKAGE" = (item as any).telecomType || "CUSTOM";

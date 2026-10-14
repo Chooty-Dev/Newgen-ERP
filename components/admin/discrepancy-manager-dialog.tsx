@@ -74,24 +74,32 @@ export function DiscrepancyManagerDialog({
   const [adjTypeInput, setAdjTypeInput] = React.useState<"SURPLUS" | "SHORTAGE">("SURPLUS");
   const [adjReasonInput, setAdjReasonInput] = React.useState<string>("");
 
+  const countedCashInputRef = React.useRef(countedCashInput);
+  countedCashInputRef.current = countedCashInput;
+
   const fetchAudit = React.useCallback(
-    async (countedVal?: number | null) => {
+    async (countedVal?: number | null, overrideDate?: string) => {
       if (!shopId) return;
       setLoading(true);
       try {
-        const parsedCount =
-          typeof countedVal === "number"
-            ? countedVal
-            : countedCashInput.trim() !== "" && !isNaN(Number(countedCashInput))
-            ? Number(countedCashInput)
-            : null;
+        const dateToUse = overrideDate || selectedDate;
+        let parsedCount: number | null = null;
+        if (typeof countedVal === "number") {
+          parsedCount = countedVal;
+        } else if (countedVal === null) {
+          parsedCount = null;
+        } else {
+          const currentVal = countedCashInputRef.current.trim();
+          parsedCount = currentVal !== "" && !isNaN(Number(currentVal)) ? Number(currentVal) : null;
+        }
 
-        const res = await getShopDiscrepancyAuditAction(shopId, parsedCount, selectedDate);
+        const res = await getShopDiscrepancyAuditAction(shopId, parsedCount, dateToUse);
         if (res.success && res.audit) {
           setAuditData(res.audit);
-          if (countedCashInput === "" && res.audit.expectedPhysicalDrawerCash) {
-            setCountedCashInput(String(res.audit.countedCash));
-          }
+          // Only prefill input if currently empty (e.g. initial dialog open)
+          setCountedCashInput((prev) =>
+            prev.trim() === "" ? String(res.audit.expectedPhysicalDrawerCash) : prev
+          );
           setFloatAmountInput(res.audit.defaultConfiguredFloat || 4000);
         } else {
           toast.error(res.error || "Failed to load discrepancy audit data.");
@@ -103,19 +111,23 @@ export function DiscrepancyManagerDialog({
         setLoading(false);
       }
     },
-    [shopId, countedCashInput, selectedDate]
+    [shopId, selectedDate]
   );
 
   React.useEffect(() => {
     if (open) {
       fetchAudit();
+    } else {
+      setAuditData(null);
+      setCountedCashInput("");
     }
-  }, [open, fetchAudit]);
+  }, [open, selectedDate, shopId, fetchAudit]);
 
   const handleCheckCountedCash = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const parsed = Number(countedCashInput);
-    if (!isNaN(parsed) && countedCashInput.trim() !== "") {
+    const trimmed = countedCashInput.trim();
+    const parsed = Number(trimmed);
+    if (trimmed !== "" && !isNaN(parsed)) {
       fetchAudit(parsed);
     } else {
       toast.error(
@@ -260,10 +272,7 @@ export function DiscrepancyManagerDialog({
                 <Input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    fetchAudit();
-                  }}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   className="h-8 text-xs font-mono w-[130px]"
                 />
                 <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
@@ -712,29 +721,21 @@ export function DiscrepancyManagerDialog({
 
                       <tr>
                         <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si" ? "රීලෝඩ් ලැබීම් (Reloads Cash)" : "Telecom Reloads (Cash)"}
+                          {lang === "si"
+                            ? "රීලෝඩ් සහ බිල්පත් ගෙවීම් (Reloads & Bills)"
+                            : "Telecom Reloads & Utility Bills (Cash)"}
                         </td>
                         <td className="py-2.5 px-3.5 text-muted-foreground">
                           {lang === "si"
-                            ? "Dialog, Mobitel, Airtel, Hutch රීලෝඩ් සඳහා පාරිභෝගිකයින් දුන් මුදල්"
-                            : "Physical cash collected from customers for reload recharges"}
+                            ? "Dialog, Mobitel, Airtel, Hutch රීලෝඩ්/පැකේජ් සහ ජල/විදුලි බිල්පත් සඳහා කවුන්ටරයෙන් ගත් මුදල්"
+                            : "Physical cash collected from customers for telecom reloads, packages & utility bills"}
                         </td>
                         <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-600">
-                          + LKR {auditData.inflows.reloadCash.toLocaleString()}
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si" ? "විදුලි/ජල බිල්පත් (Utility Bills)" : "Utility Bills (Cash)"}
-                        </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground">
-                          {lang === "si"
-                            ? "විදුලි සහ ජල බිල්පත් සඳහා කවුන්ටරයෙන් ගත් මුදල්"
-                            : "Electricity & water bill payments collected at counter"}
-                        </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-600">
-                          + LKR {auditData.inflows.utilityBillsCash.toLocaleString()}
+                          + LKR{" "}
+                          {(
+                            auditData.inflows.reloadsAndBillsCash ??
+                            auditData.inflows.reloadCash + auditData.inflows.utilityBillsCash
+                          ).toLocaleString()}
                         </td>
                       </tr>
 

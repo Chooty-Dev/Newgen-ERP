@@ -120,9 +120,12 @@ export async function createCommunicationItemAction(formData: unknown) {
     const code = result.data.itemCode.trim().toUpperCase();
     const name = result.data.name.trim();
     const nameUpper = name.toUpperCase();
-    const isTelecomByKeyword = ["DIALOG", "MOBITEL", "AIRTEL", "HUTCH"].some(
-      (op) => code.includes(op) || nameUpper.includes(op)
-    );
+    const isTelecomByKeyword =
+      ["DIALOG", "MOBITEL", "AIRTEL", "HUTCH"].some(
+        (op) => code.includes(op) || nameUpper.includes(op)
+      ) ||
+      /^[DMH]\d+/i.test(code) ||
+      /blaster|package|combo|tik tok/i.test(nameUpper);
     const isReload = Boolean(result.data.isTelecomReload || (result.data.telecomOperator && result.data.telecomOperator !== "OTHER") || isTelecomByKeyword);
     let operator = result.data.telecomOperator;
     if (isReload && (!operator || operator === "OTHER")) {
@@ -225,9 +228,12 @@ export async function updateCommunicationItemAction(formData: unknown) {
     const code = result.data.itemCode.trim().toUpperCase();
     const name = result.data.name.trim();
     const nameUpper = name.toUpperCase();
-    const isTelecomByKeyword = ["DIALOG", "MOBITEL", "AIRTEL", "HUTCH"].some(
-      (op) => code.includes(op) || nameUpper.includes(op)
-    );
+    const isTelecomByKeyword =
+      ["DIALOG", "MOBITEL", "AIRTEL", "HUTCH"].some(
+        (op) => code.includes(op) || nameUpper.includes(op)
+      ) ||
+      /^[DMH]\d+/i.test(code) ||
+      /blaster|package|combo|tik tok/i.test(nameUpper);
     const isReload = Boolean(result.data.isTelecomReload || (result.data.telecomOperator && result.data.telecomOperator !== "OTHER") || isTelecomByKeyword);
     let operator = result.data.telecomOperator;
     if (isReload && (!operator || operator === "OTHER")) {
