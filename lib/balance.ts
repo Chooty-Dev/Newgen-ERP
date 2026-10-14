@@ -150,11 +150,10 @@ export async function recalculateShopRunningBalance(
           record.beneficiaryShop?.toString() !== shopObjId.toString());
 
       if (isCollecting) {
-        // While UNSETTLED: cash physically entered the counter drawer (+effectiveAmount)
-        // Once SETTLED: cash was handed over or banked, leaving the drawer.
-        if (record.interBranchSettlementStatus === "UNSETTLED") {
-          currentBalance += effectiveAmount;
-        }
+        // Physical cash entered this counter drawer upon customer payment (+effectiveAmount).
+        // It stays as part of this shop's historical drawer cash inflow (which gets swept during Daily Settlement).
+        // Settling it later (from safe/central cash) does NOT deduct it from the collecting shop drawer!
+        currentBalance += effectiveAmount;
       } else if (isBeneficiary) {
         // Beneficiary branch physically receives cash ONLY when settled via handover
         if (
@@ -262,8 +261,9 @@ export async function getShopCashBalance(
   ]);
 
   // 2. Cross-branch cash physically collected AT this shop (as collectingShop)
-  // While UNSETTLED: cash physically sits in this shop's drawer (+effectiveAmount).
-  // Includes PENDING because cash entered the till upon customer payment at the counter!
+  // Physical cash entered this shop's drawer upon customer payment (+effectiveAmount).
+  // Remains part of drawer cash balance until swept by Daily Settlement.
+  // Settling it later (from safe/central cash) does NOT deduct it from the collecting shop drawer.
   const collectingCashAgg = await FinanceRecord.aggregate([
     {
       $match: {
@@ -272,12 +272,10 @@ export async function getShopCashBalance(
           { shop: shopObjId, isCrossBranchPayment: true, beneficiaryShop: { $ne: shopObjId } },
         ],
         isCrossBranchPayment: true,
-        isCommunicationItem: { $ne: true },
         type: "INCOME",
         isDeleted: { $ne: true },
         status: { $ne: "REJECTED" },
         paymentMethod: { $in: ["CASH", null] },
-        interBranchSettlementStatus: "UNSETTLED",
         ...dateFilter,
       },
     },
@@ -506,7 +504,9 @@ export async function getShopPeriodCashFlow(
   const settledOutflow = settledOutAgg[0]?.outflow || 0;
 
   const cashInflow = stdInflow + colInflow + benInflow;
-  const cashOutflow = stdOutflow + settledOutflow;
+  // Note: settled cross-branch cash is disbursed from swept/safe cash, not today's counter drawer.
+  // The drawer outflow was already captured in stdOutflow by the Daily Settlement float sweep.
+  const cashOutflow = stdOutflow;
   const netCashFlow = cashInflow - cashOutflow;
 
   const closingCashBalance = await getShopCashBalance(shopObjId, endDate);
@@ -817,12 +817,10 @@ export async function getShopCashAuditData(
           { shop: shopObjId, isCrossBranchPayment: true, beneficiaryShop: { $ne: shopObjId } },
         ],
         isCrossBranchPayment: true,
-        isCommunicationItem: { $ne: true },
         type: "INCOME",
         isDeleted: { $ne: true },
         status: { $ne: "REJECTED" },
         paymentMethod: { $in: ["CASH", null] },
-        interBranchSettlementStatus: "UNSETTLED",
       },
     },
     {
@@ -1206,7 +1204,7 @@ export async function getShopDiscrepancyAuditData(
     const isBeneficiary = r.beneficiaryShop?.toString() === shopObjId.toString() && !isDirectShop;
 
     if (r.isCrossBranchPayment) {
-      if (r.interBranchSettlementStatus === "UNSETTLED") {
+      if (isDirectShop || r.collectingShop?.toString() === shopObjId.toString()) {
         crossBranchCash += amt;
       } else if (isBeneficiary && r.settlementType === "HANDOVER_TO_BRANCH") {
         crossBranchCash += amt;
