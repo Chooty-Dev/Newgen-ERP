@@ -7,7 +7,7 @@ export interface IDailySettlement extends Document {
   totalCashBefore: number;
   retainedFloat: number;
   transferAmount: number;
-  destinationType: "PETTY_CASH" | "BANK_ACCOUNT";
+  destinationType: "PETTY_CASH" | "BANK_ACCOUNT" | "PHYSICAL_HANDOVER";
   bankAccount?: mongoose.Types.ObjectId | null;
   financeRecord?: mongoose.Types.ObjectId | null;
   destinationFinanceRecord?: mongoose.Types.ObjectId | null;
@@ -50,7 +50,7 @@ const DailySettlementSchema = new Schema<IDailySettlement>(
     },
     destinationType: {
       type: String,
-      enum: ["PETTY_CASH", "BANK_ACCOUNT"],
+      enum: ["PETTY_CASH", "BANK_ACCOUNT", "PHYSICAL_HANDOVER"],
       required: true,
     },
     bankAccount: {

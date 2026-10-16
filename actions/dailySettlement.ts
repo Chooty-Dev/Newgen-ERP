@@ -68,13 +68,16 @@ export async function getDailySettlementHistoryAction(shopId: string) {
     let totalSettled = 0;
     let totalToPettyCash = 0;
     let totalToBank = 0;
+    let totalToHandover = 0;
 
     for (const s of settlements) {
       totalSettled += s.transferAmount || 0;
       if (s.destinationType === "PETTY_CASH") {
         totalToPettyCash += s.transferAmount || 0;
-      } else {
+      } else if (s.destinationType === "BANK_ACCOUNT") {
         totalToBank += s.transferAmount || 0;
+      } else if (s.destinationType === "PHYSICAL_HANDOVER") {
+        totalToHandover += s.transferAmount || 0;
       }
     }
 
@@ -93,6 +96,7 @@ export async function getDailySettlementHistoryAction(shopId: string) {
         totalSettled,
         totalToPettyCash,
         totalToBank,
+        totalToHandover,
         settlementCount: settlements.length,
         lastSettlementDate: settlements[0]?.date || null,
       },
@@ -230,7 +234,9 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
     // Opening float record is formally saved, approved, and active for this date!
     const destName = destinationType === "PETTY_CASH"
       ? "Central Petty Cash"
-      : `${bankDoc.bankName} (${bankDoc.accountNumber})`;
+      : destinationType === "BANK_ACCOUNT"
+      ? `${bankDoc?.bankName} (${bankDoc?.accountNumber})`
+      : "Physical Handover";
 
     let floatRec: any = null;
     let shopExpenseAmount = transferAmount;
@@ -354,7 +360,9 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
 
     return {
       success: true,
-      message: `Successfully settled LKR ${transferAmount.toLocaleString()} to ${destName}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.`,
+      message: destinationType === "PHYSICAL_HANDOVER"
+        ? `Successfully recorded physical handover of LKR ${transferAmount.toLocaleString()}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.`
+        : `Successfully settled LKR ${transferAmount.toLocaleString()} to ${destName}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.`,
     };
   } catch (error) {
     console.error("Error recording daily settlement:", error);

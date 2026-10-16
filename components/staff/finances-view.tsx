@@ -659,15 +659,16 @@ export function FinancesView({
   const watchEditQty = editForm.watch("quantity") || 1;
   const watchEditSelling = editForm.watch("sellingPrice") || 0;
   const watchEditDiscount = editForm.watch("discountPrice") || 0;
+  const watchEditAdditional = editForm.watch("additionalCost") || 0;
   const watchEditIsComm = editForm.watch("isCommunicationItem");
   const watchEditIsBranch = editForm.watch("isRelatedToBranch");
 
   React.useEffect(() => {
     if (watchEditIsComm) {
-      const net = Math.max(0, (watchEditQty * watchEditSelling) - watchEditDiscount);
+      const net = Math.max(0, (watchEditQty * watchEditSelling) - watchEditDiscount + watchEditAdditional);
       editForm.setValue("amount", net);
     }
-  }, [watchEditQty, watchEditSelling, watchEditDiscount, watchEditIsComm, editForm]);
+  }, [watchEditQty, watchEditSelling, watchEditDiscount, watchEditAdditional, watchEditIsComm, editForm]);
 
   const refreshRecords = async () => {
     setLoading(true);
@@ -861,7 +862,7 @@ export function FinancesView({
       }
     } else {
       calculatedTotal = commQuantity * (isUnlistedItem ? commUnitPrice : (matchedItem?.sellingPrice || 0));
-      net = Math.max(0, calculatedTotal - discount);
+      net = Math.max(0, calculatedTotal - discount + additionalCost);
       actualPrice = isUnlistedItem ? commCustomCostPrice : (matchedItem?.actualPrice || 0);
     }
 
@@ -972,7 +973,7 @@ export function FinancesView({
           }
         } else {
           calculatedTotal = (commQuantity || 1) * effectiveUnitPrice;
-          net = Math.max(0, calculatedTotal - discount);
+          net = Math.max(0, calculatedTotal - discount + additionalCost);
           actualPrice = isUnlistedItem ? commCustomCostPrice : (matchedItem?.actualPrice || 0);
         }
 
@@ -2134,7 +2135,7 @@ export function FinancesView({
 
                       <div className="space-y-1">
                         <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between">
-                          <span>Additional Cost</span>
+                          <span>Additional Charge</span>
                           <span className="text-[9px] text-muted-foreground font-normal">(Optional)</span>
                         </label>
                         <Input
@@ -2145,7 +2146,7 @@ export function FinancesView({
                           value={commAdditionalCost || ""}
                           onChange={(e) => setCommAdditionalCost(Math.max(0, Number(e.target.value) || 0))}
                           className="h-9 text-xs font-mono"
-                          title="Extra procurement or material surcharge cost"
+                          title="Extra service charge or additional fee"
                         />
                       </div>
 
@@ -2159,7 +2160,7 @@ export function FinancesView({
                           )}
                         </label>
                         <div className="h-9 px-3 rounded-md border border-border bg-muted/40 flex items-center font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          LKR {Math.max(0, (commQuantity * (isUnlistedItem ? commUnitPrice : (matchedItem?.sellingPrice || 0))) - commDiscountPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          LKR {Math.max(0, (commQuantity * (isUnlistedItem ? commUnitPrice : (matchedItem?.sellingPrice || 0))) - commDiscountPrice + (commAdditionalCost || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                       </div>
                     </div>
@@ -2237,7 +2238,7 @@ export function FinancesView({
                                 )}
                                 {item.additionalCost !== undefined && item.additionalCost > 0 && (
                                   <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                                    • Extra Cost: +LKR {Number(item.additionalCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    • Additional Charge: +LKR {Number(item.additionalCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                   </span>
                                 )}
                               </div>
@@ -2784,7 +2785,7 @@ export function FinancesView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                        Additional Cost (LKR)
+                        Additional Charge (LKR)
                       </label>
                       <Input
                         type="number"
@@ -2800,7 +2801,7 @@ export function FinancesView({
                   <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-xs font-mono">
                     <span className="font-sans font-medium text-foreground">Calculated Net Total:</span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                      LKR {Math.max(0, (watchEditQty * watchEditSelling) - watchEditDiscount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      LKR {Math.max(0, (watchEditQty * watchEditSelling) - watchEditDiscount + (watchEditAdditional || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>

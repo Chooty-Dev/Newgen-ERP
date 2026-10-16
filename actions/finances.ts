@@ -934,7 +934,11 @@ export async function createCommunicationSaleBatchAction(payload: {
     let grandTotal = 0;
 
     for (const item of payload.items) {
-      const netAmount = Math.max(0, Number(item.amount) || Number(item.totalPrice) - Number(item.discountPrice || 0));
+      const netAmount = Math.max(
+        0,
+        Number(item.amount) ||
+          Number(item.totalPrice) - Number(item.discountPrice || 0) + Number(item.additionalCost || 0)
+      );
       grandTotal += netAmount;
       // Resolve unit selling price
       const unitSelling = item.sellingPrice !== undefined && item.sellingPrice > 0

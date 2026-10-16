@@ -389,7 +389,7 @@ export function SingleShopView({
   const [dailySettleTransferAmount, setDailySettleTransferAmount] = React.useState<number>(
     Math.max(0, (initialStats.currentBalance || 0) - 4000)
   );
-  const [dailySettleDestinationType, setDailySettleDestinationType] = React.useState<"PETTY_CASH" | "BANK_ACCOUNT">("PETTY_CASH");
+  const [dailySettleDestinationType, setDailySettleDestinationType] = React.useState<"PETTY_CASH" | "BANK_ACCOUNT" | "PHYSICAL_HANDOVER">("PETTY_CASH");
   const [dailySettleBankAccountId, setDailySettleBankAccountId] = React.useState<string>("");
   const [dailySettleReference, setDailySettleReference] = React.useState<string>("");
   const [dailySettleNote, setDailySettleNote] = React.useState<string>("");
@@ -579,6 +579,7 @@ export function SingleShopView({
       header: "Destination",
       cell: ({ row }) => {
         const isPetty = row.original.destinationType === "PETTY_CASH";
+        const isHandover = row.original.destinationType === "PHYSICAL_HANDOVER";
         const bank = row.original.bankAccount;
         return (
           <div className="flex items-center gap-1.5">
@@ -586,6 +587,11 @@ export function SingleShopView({
               <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 <CoinsIcon className="size-3 mr-1" />
                 Central Petty Cash
+              </Badge>
+            ) : isHandover ? (
+              <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <BanknoteIcon className="size-3 mr-1" />
+                Physical Handover
               </Badge>
             ) : (
               <Badge variant="secondary" className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
@@ -5173,87 +5179,153 @@ export function SingleShopView({
       </Dialog>
 
       {/* DAILY CASH FLOAT SETTLEMENT DIALOG */}
-      <Dialog open={dailySettlementDialogOpen} onOpenChange={setDailySettlementDialogOpen}>
-        <DialogContent className="sm:max-w-[540px]">
-          <DialogHeader>
+
+      <Dialog
+        open={dailySettlementDialogOpen}
+        onOpenChange={setDailySettlementDialogOpen}
+      >
+        <DialogContent
+          className="
+      w-[calc(100%-1rem)]
+      sm:max-w-[840px]
+      h-[85vh]
+      max-h-[85vh]
+      overflow-hidden
+      flex
+      flex-col
+      p-4
+      sm:p-6
+    "
+        >
+          <DialogHeader className="shrink-0">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                 <CoinsIcon className="size-5" />
               </div>
-              <div>
+
+              <div className="min-w-0">
                 <DialogTitle className="text-base font-semibold">
                   Record Daily Cash Settlement
                 </DialogTitle>
+
                 <DialogDescription className="text-xs">
-                  Retain standard opening float and sweep surplus drawer cash to Petty Cash or Bank.
+                  Retain standard opening float and sweep surplus drawer cash to
+                  Petty Cash or Bank.
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleSubmitDailySettlement} className="space-y-4 pt-2">
+          <form
+            onSubmit={handleSubmitDailySettlement}
+            className="
+        flex-1
+        min-h-0
+        overflow-y-auto
+        overscroll-contain
+        space-y-4
+        pt-2
+        pr-1
+        [scrollbar-width:none]
+        [-ms-overflow-style:none]
+        [&::-webkit-scrollbar]:hidden
+      "
+          >
             {/* Live Calculation Banner */}
             <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground font-medium">Today's Available Cash in Drawer:</span>
-                <span className="font-mono font-bold text-foreground text-sm">
-                  LKR {dailySettlementCurrentCash.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground font-medium">
+                  Today's Available Cash in Drawer:
+                </span>
+
+                <span className="font-mono font-bold text-foreground text-sm text-right shrink-0">
+                  LKR{" "}
+                  {dailySettlementCurrentCash.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 {/* Retained Float Input */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between">
+                <div className="space-y-1 min-w-0">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between gap-2">
                     <span>Retained Float</span>
-                    <span className="text-[10px] text-primary lowercase">(editable)</span>
+                    <span className="text-[10px] text-primary lowercase">
+                      (editable)
+                    </span>
                   </label>
+
                   <div className="relative">
-                    <span className="absolute left-2.5 top-2 text-xs font-mono text-muted-foreground">LKR</span>
+                    <span className="absolute left-2.5 top-2 text-xs font-mono text-muted-foreground">
+                      LKR
+                    </span>
+
                     <Input
                       type="number"
                       step="any"
                       min="0"
                       value={dailySettleRetainedFloat}
-                      onChange={(e) => handleRetainedFloatChange(Number(e.target.value) || 0)}
+                      onChange={(e) =>
+                        handleRetainedFloatChange(Number(e.target.value) || 0)
+                      }
                       className="h-8 text-xs font-mono pl-10 font-medium"
                       required
                     />
                   </div>
+
                   <p className="text-[10px] text-muted-foreground">
                     Cash kept in drawer to start next day.
                   </p>
                 </div>
 
                 {/* Sweep / Transfer Amount */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between">
+                <div className="space-y-1 min-w-0">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between gap-2">
                     <span>Surplus Sweep Amount</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold">(auto-calculated)</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold">
+                      (auto-calculated)
+                    </span>
                   </label>
+
                   <div className="relative">
-                    <span className="absolute left-2.5 top-2 text-xs font-mono text-muted-foreground">LKR</span>
+                    <span className="absolute left-2.5 top-2 text-xs font-mono text-muted-foreground">
+                      LKR
+                    </span>
+
                     <Input
                       type="number"
                       step="any"
                       min="0.01"
                       value={dailySettleTransferAmount}
-                      onChange={(e) => handleTransferAmountChange(Number(e.target.value) || 0)}
+                      onChange={(e) =>
+                        handleTransferAmountChange(Number(e.target.value) || 0)
+                      }
                       className="h-8 text-xs font-mono pl-10 font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800"
                       required
                     />
                   </div>
+
                   <p className="text-[10px] text-muted-foreground">
                     Amount transferred out of drawer.
                   </p>
                 </div>
               </div>
 
-              {/* Dynamic Calculation Summary Indicator */}
-              <div className="rounded-lg bg-background p-2.5 border border-border/80 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Drawer Remaining After Sweep:</span>
-                <span className="font-mono font-semibold text-foreground">
-                  LKR {Math.max(0, dailySettlementCurrentCash - dailySettleTransferAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              {/* Dynamic Calculation Summary */}
+              <div className="rounded-lg bg-background p-2.5 border border-border/80 flex items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground">
+                  Drawer Remaining After Sweep:
+                </span>
+
+                <span className="font-mono font-semibold text-foreground shrink-0">
+                  LKR{" "}
+                  {Math.max(
+                    0,
+                    dailySettlementCurrentCash - dailySettleTransferAmount
+                  ).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
                 </span>
               </div>
             </div>
@@ -5263,7 +5335,8 @@ export function SingleShopView({
               <label className="text-xs font-semibold text-foreground">
                 Target Destination Source:
               </label>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setDailySettleDestinationType("PETTY_CASH")}
@@ -5274,10 +5347,14 @@ export function SingleShopView({
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <CoinsIcon className="size-4 text-blue-600" />
-                    <span className="text-xs font-semibold">Central Petty Cash</span>
+                    <span className="text-xs font-semibold">
+                      Central Petty Cash
+                    </span>
                   </div>
+
                   <span className="text-[11px] text-muted-foreground">
-                    Sweeps surplus cash directly into the central company petty cash float.
+                    Sweeps surplus cash directly into the central company petty cash
+                    float.
                   </span>
                 </button>
 
@@ -5293,28 +5370,59 @@ export function SingleShopView({
                     <LandmarkIcon className="size-4 text-indigo-600" />
                     <span className="text-xs font-semibold">Bank Account</span>
                   </div>
+
                   <span className="text-[11px] text-muted-foreground">
                     Deposits surplus cash into a verified company bank account.
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDailySettleDestinationType("PHYSICAL_HANDOVER")}
+                  className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${dailySettleDestinationType === "PHYSICAL_HANDOVER"
+                    ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted/50"
+                    }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <BanknoteIcon className="size-4 text-amber-600" />
+                    <span className="text-xs font-semibold">
+                      Physical Hand Over
+                    </span>
+                  </div>
+
+                  <span className="text-[11px] text-muted-foreground">
+                    Surplus cash is physically handed over directly without adding
+                    to Petty Cash or Bank.
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* Bank Account Dropdown if BANK_ACCOUNT selected */}
+            {/* Bank Account Dropdown */}
             {dailySettleDestinationType === "BANK_ACCOUNT" && (
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-foreground">
-                  Select Destination Bank Account <span className="text-destructive">*</span>
+                  Select Destination Bank Account{" "}
+                  <span className="text-destructive">*</span>
                 </label>
+
                 {dailySettlementBankAccounts.length === 0 ? (
                   <p className="text-xs text-destructive">
-                    No active company bank accounts found. Please add a bank account first.
+                    No active company bank accounts found. Please add a bank account
+                    first.
                   </p>
                 ) : (
-                  <Select value={dailySettleBankAccountId} onValueChange={(val) => setDailySettleBankAccountId(val || "")}>
+                  <Select
+                    value={dailySettleBankAccountId}
+                    onValueChange={(val) =>
+                      setDailySettleBankAccountId(val || "")
+                    }
+                  >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Choose bank account..." />
                     </SelectTrigger>
+
                     <SelectContent>
                       {dailySettlementBankAccounts.map((b) => (
                         <SelectItem key={b._id} value={b._id}>
@@ -5328,11 +5436,12 @@ export function SingleShopView({
             )}
 
             {/* Date and Reference */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1 min-w-0">
                 <label className="text-[11px] font-semibold text-muted-foreground uppercase">
                   Settlement Date
                 </label>
+
                 <Input
                   type="date"
                   value={dailySettleDate}
@@ -5342,10 +5451,11 @@ export function SingleShopView({
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <label className="text-[11px] font-semibold text-muted-foreground uppercase">
                   Reference #
                 </label>
+
                 <Input
                   placeholder="e.g. SETTLE-00123"
                   value={dailySettleReference}
@@ -5360,6 +5470,7 @@ export function SingleShopView({
               <label className="text-[11px] font-semibold text-muted-foreground uppercase">
                 Note / Remarks (Optional)
               </label>
+
               <Textarea
                 placeholder="Additional notes for drawer closing or settlement handover..."
                 value={dailySettleNote}
@@ -5368,7 +5479,8 @@ export function SingleShopView({
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            {/* Footer Actions */}
+            <DialogFooter className="pt-2 pb-1 gap-2 sm:gap-0 shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -5378,10 +5490,14 @@ export function SingleShopView({
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 size="sm"
-                disabled={isSubmittingDailySettlement || dailySettleTransferAmount <= 0}
+                disabled={
+                  isSubmittingDailySettlement ||
+                  dailySettleTransferAmount <= 0
+                }
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
               >
                 {isSubmittingDailySettlement ? (
@@ -5392,7 +5508,7 @@ export function SingleShopView({
                 ) : (
                   <>
                     <CheckCircle2Icon className="size-3.5 mr-1.5" />
-                    Confirm & Sweep Float
+                    Confirm &amp; Sweep Float
                   </>
                 )}
               </Button>
@@ -5400,6 +5516,7 @@ export function SingleShopView({
           </form>
         </DialogContent>
       </Dialog>
+
 
       {/* Cash Drawer Audit & Diagnostic Dialog */}
       <Dialog open={auditOpen} onOpenChange={setAuditOpen}>
