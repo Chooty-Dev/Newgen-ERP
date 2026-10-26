@@ -134,7 +134,11 @@ export async function getShopDetailsAction(shopId: string) {
         currentBalance,
         totalCustomerCredit,
         creditCustomerCount,
-        interBranchDues: JSON.parse(JSON.stringify(interBranchDues)),
+        interBranchDues: {
+          ...JSON.parse(JSON.stringify(interBranchDues)),
+          owedByOthers: JSON.parse(JSON.stringify(interBranchDues?.owedFromOthers || [])),
+          totalOwedToThisShop: interBranchDues?.totalOwed || 0,
+        },
       },
     };
   } catch (error) {

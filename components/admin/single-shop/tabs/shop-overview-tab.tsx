@@ -170,114 +170,136 @@ export function ShopOverviewTab({
       </div>
 
       {/* 2. Inter-Branch Cash Settlement Dues */}
-      {stats.interBranchDues && (stats.interBranchDues.holdingForOthers?.length > 0 || stats.interBranchDues.owedByOthers?.length > 0) && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2Icon className="size-5 text-foreground" />
-            <h3 className="text-base font-bold text-foreground">Inter-Branch Cash Liabilities &amp; Receivables</h3>
-          </div>
+      {(() => {
+        const interBranchDues = stats?.interBranchDues;
+        const holdingForOthers: any[] = Array.isArray(interBranchDues?.holdingForOthers)
+          ? interBranchDues.holdingForOthers
+          : [];
+        const owedFromOthers: any[] = Array.isArray(interBranchDues?.owedFromOthers)
+          ? interBranchDues.owedFromOthers
+          : Array.isArray(interBranchDues?.owedByOthers)
+          ? interBranchDues.owedByOthers
+          : [];
+        const totalHolding = Number(interBranchDues?.totalHolding || 0);
+        const totalOwed = Number(
+          interBranchDues?.totalOwed !== undefined
+            ? interBranchDues.totalOwed
+            : interBranchDues?.totalOwedToThisShop || 0
+        );
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Cash This Branch Is Holding for Other Branches */}
-            <div className="glass-card p-6 rounded-3xl border border-muted/30 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-foreground">Holding for Other Branches</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Physical cash collected at {shop.name} for transactions belonging to other branches.
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase block text-[10px]">Total Due</span>
-                  <span className="text-base font-bold font-mono text-foreground">
-                    LKR {Number(stats.interBranchDues.totalHolding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
+        if (!interBranchDues || (holdingForOthers.length === 0 && owedFromOthers.length === 0)) {
+          return null;
+        }
 
-              {stats.interBranchDues.holdingForOthers?.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">No outstanding cash held for other branches.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {stats.interBranchDues.holdingForOthers.map((due: any) => (
-                    <div
-                      key={due.shopId}
-                      className="flex items-center justify-between p-4 rounded-2xl border border-muted/30 bg-surface/40 hover:bg-surface/60 transition-colors"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="text-xs font-bold text-foreground">
-                          {due.shopName}{" "}
-                          <span className="font-mono font-normal text-muted-foreground text-[11px]">({due.shopCode})</span>
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Building2Icon className="size-5 text-foreground" />
+              <h3 className="text-base font-bold text-foreground">Inter-Branch Cash Liabilities &amp; Receivables</h3>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Cash This Branch Is Holding for Other Branches */}
+              <div className="glass-card p-6 rounded-3xl border border-muted/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Holding for Other Branches</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Physical cash collected at {shop.name} for transactions belonging to other branches.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase block text-[10px]">Total Due</span>
+                    <span className="text-base font-bold font-mono text-foreground">
+                      LKR {totalHolding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {holdingForOthers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center">No outstanding cash held for other branches.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {holdingForOthers.map((due: any) => (
+                      <div
+                        key={due.shopId}
+                        className="flex items-center justify-between p-4 rounded-2xl border border-muted/30 bg-surface/40 hover:bg-surface/60 transition-colors"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-bold text-foreground">
+                            {due.shopName}{" "}
+                            <span className="font-mono font-normal text-muted-foreground text-[11px]">({due.shopCode})</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono">
+                            {due.count} transaction{due.count !== 1 ? "s" : ""}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-muted-foreground font-mono">
-                          {due.count} transaction{due.count !== 1 ? "s" : ""}
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold font-mono text-foreground">
+                            LKR {Number(due.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                          <Button
+                            size="xs"
+                            onClick={() => onOpenSettleModal(due)}
+                            className="h-8 px-3 rounded-xl bg-foreground text-background font-semibold text-xs hover:opacity-90 gap-1.5"
+                          >
+                            <HandCoinsIcon className="size-3.5" />
+                            Settle
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cash Other Branches Are Holding for This Branch */}
+              <div className="glass-card p-6 rounded-3xl border border-muted/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Receivables from Other Branches</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Payments collected at other branches for products or debts issued by {shop.name}.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase block text-[10px]">Total Receivable</span>
+                    <span className="text-base font-bold font-mono text-foreground">
+                      LKR {totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {owedFromOthers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center">No pending cash receivables from other branches.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {owedFromOthers.map((due: any) => (
+                      <div
+                        key={due.shopId}
+                        className="flex items-center justify-between p-4 rounded-2xl border border-muted/30 bg-surface/40"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-bold text-foreground">
+                            {due.shopName}{" "}
+                            <span className="font-mono font-normal text-muted-foreground text-[11px]">({due.shopCode})</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono">
+                            {due.count} transaction{due.count !== 1 ? "s" : ""}
+                          </div>
+                        </div>
                         <span className="text-xs font-bold font-mono text-foreground">
                           LKR {Number(due.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
-                        <Button
-                          size="xs"
-                          onClick={() => onOpenSettleModal(due)}
-                          className="h-8 px-3 rounded-xl bg-foreground text-background font-semibold text-xs hover:opacity-90 gap-1.5"
-                        >
-                          <HandCoinsIcon className="size-3.5" />
-                          Settle
-                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Cash Other Branches Are Holding for This Branch */}
-            <div className="glass-card p-6 rounded-3xl border border-muted/30 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-foreground">Receivables from Other Branches</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Payments collected at other branches for products or debts issued by {shop.name}.
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase block text-[10px]">Total Receivable</span>
-                  <span className="text-base font-bold font-mono text-foreground">
-                    LKR {Number(stats.interBranchDues.totalOwedToThisShop || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {stats.interBranchDues.owedByOthers?.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">No pending cash receivables from other branches.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {stats.interBranchDues.owedByOthers.map((due: any) => (
-                    <div
-                      key={due.shopId}
-                      className="flex items-center justify-between p-4 rounded-2xl border border-muted/30 bg-surface/40"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="text-xs font-bold text-foreground">
-                          {due.shopName}{" "}
-                          <span className="font-mono font-normal text-muted-foreground text-[11px]">({due.shopCode})</span>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground font-mono">
-                          {due.count} transaction{due.count !== 1 ? "s" : ""}
-                        </div>
-                      </div>
-                      <span className="text-xs font-bold font-mono text-foreground">
-                        LKR {Number(due.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 3. Period Filter and Actions Bar */}
       <div className="glass-card p-6 md:p-8 rounded-3xl border border-muted/30 flex flex-col gap-6 md:flex-row md:items-center md:justify-between shadow-xs">

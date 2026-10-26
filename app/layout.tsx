@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Nunito_Sans, Lora } from "next/font/google";
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip";
+import Script from "next/script";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -30,8 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", nunitoSans.variable)}
     >
-      <head>
-        <script
+      <body className="min-h-full flex flex-col">
+        <Script
+          id="theme-initializer"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -47,8 +50,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             `,
           }}
         />
-      </head>
-      <body className="min-h-full flex flex-col">
         <TooltipProvider>
           {children}
         </TooltipProvider>
