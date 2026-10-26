@@ -16,13 +16,11 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { logoutAction } from "@/actions/auth";
 import {
   AlertDialog,
@@ -36,16 +34,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/toast";
 import {
-  SunIcon,
-  MoonIcon,
-  LogOutIcon,
-  SettingsIcon,
-  UserIcon,
-  ShieldCheckIcon,
-  BuildingIcon,
-  ClockIcon,
-  Loader2Icon,
+  LogOut,
+  Settings,
+  ArrowUpRight,
+  Loader2,
 } from "lucide-react";
+import { useShopNav } from "@/components/shared/shop-nav-context";
+import { SunMoonThemeToggle } from "./animated-theme-toggle";
 
 interface AppHeaderProps {
   user: {
@@ -61,7 +56,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ user }: AppHeaderProps) {
   const pathname = usePathname();
-  const [isDark, setIsDark] = React.useState(false);
+  const { shopNav } = useShopNav();
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
@@ -70,8 +65,8 @@ export function AppHeader({ user }: AppHeaderProps) {
     if (e) e.preventDefault();
     setIsLoggingOut(true);
     toast.create({
-      title: "Logging you out...",
-      description: "Please wait while we safely end your session.",
+      title: "Signing out",
+      description: "Ending session...",
       type: "info",
     });
     try {
@@ -91,33 +86,27 @@ export function AppHeader({ user }: AppHeaderProps) {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
       document.documentElement.style.colorScheme = "dark";
-      setIsDark(true);
     } else {
       document.documentElement.classList.remove("dark");
       document.documentElement.style.colorScheme = "light";
-      setIsDark(false);
     }
   }, []);
 
-  const toggleTheme = () => {
-    if (document.documentElement.classList.contains("dark")) {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.style.colorScheme = "light";
-      localStorage.setItem("theme", "light");
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.add("dark");
-      document.documentElement.style.colorScheme = "dark";
-      localStorage.setItem("theme", "dark");
-      setIsDark(true);
-    }
-  };
-
-  // Generate breadcrumb items from URL
   const segments = pathname.split("/").filter(Boolean);
   const breadcrumbItems = segments.map((seg, idx) => {
     const url = "/" + segments.slice(0, idx + 1).join("/");
-    const formatted = seg.charAt(0).toUpperCase() + seg.slice(1);
+    let formatted = seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " ");
+
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(seg);
+    if (shopNav && (shopNav.shopId === seg || shopNav.shopId.toLowerCase() === seg.toLowerCase())) {
+      formatted = shopNav.shopName;
+    } else if (isMongoId) {
+      const matched = user.shops?.find((s: any) => s._id === seg || s.id === seg);
+      if (matched) {
+        formatted = matched.name;
+      }
+    }
+
     const isLast = idx === segments.length - 1;
     return { name: formatted, url, isLast };
   });
@@ -139,22 +128,22 @@ export function AppHeader({ user }: AppHeaderProps) {
         : "/dashboard/staff/settings";
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 flex h-14 w-full items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-md transition-colors shadow-xs">
-      <div className="flex items-center gap-3">
-        <SidebarTrigger className="h-8 w-8 text-muted-foreground hover:text-foreground" />
+    <header className="sticky top-0 z-40 flex h-20 w-full shrink-0 items-center justify-between bg-background px-6 backdrop-blur-md transition-all">
+      <div className="flex items-center gap-4">
+        <SidebarTrigger className="size-9 text-foreground hover:opacity-70 transition-opacity" />
         <div className="hidden sm:block">
           <Breadcrumb>
-            <BreadcrumbList>
+            <BreadcrumbList className="text-base font-medium">
               {breadcrumbItems.map((item, index) => (
                 <React.Fragment key={item.url}>
-                  {index > 0 && <BreadcrumbSeparator />}
+                  {index > 0 && <BreadcrumbSeparator className="text-muted-foreground/60" />}
                   <BreadcrumbItem>
                     {item.isLast ? (
-                      <BreadcrumbPage className="font-semibold text-foreground">
+                      <BreadcrumbPage className="font-semibold text-foreground text-base">
                         {item.name}
                       </BreadcrumbPage>
                     ) : (
-                      <BreadcrumbLink render={<Link href={item.url} />}>
+                      <BreadcrumbLink render={<Link href={item.url} />} className="text-muted-foreground hover:text-foreground text-base">
                         {item.name}
                       </BreadcrumbLink>
                     )}
@@ -166,168 +155,117 @@ export function AppHeader({ user }: AppHeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Theme Toggle */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={toggleTheme}
-          className="text-muted-foreground hover:text-foreground"
-          aria-label="Toggle theme"
-        >
-          {isDark ? (
-            <SunIcon className="size-4 text-warning" />
-          ) : (
-            <MoonIcon className="size-4" />
-          )}
-        </Button>
+      <div className="flex items-center gap-3">
+        {/* Animated Sun / Moon Theme Switcher */}
+        <SunMoonThemeToggle
+          size={40}
+          duration={1200}
+          sky={true}
+          storageKey="theme"
+          syncDocument={true}
+          onThemeChange={(theme) => {
+            document.documentElement.style.colorScheme = theme;
+          }}
+          className="border-muted/30 hover:border-muted/60 transition-all shadow-xs"
+        />
 
-        {/* Profile Dialog */}
+        {/* Minimalist Profile Trigger */}
         <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
           <DialogTrigger
             render={
-              <Button
-                variant="ghost"
-                className="relative flex items-center gap-2 rounded-full p-1 pl-2 hover:bg-muted/60"
-              />
+              <button className="flex items-center gap-3 rounded-2xl px-3 py-2 text-foreground hover:bg-surface/50 transition-colors" />
             }
           >
-            <span className="hidden md:inline-block text-xs font-medium text-foreground">
+            <span className="hidden md:inline-block text-base font-semibold text-foreground">
               {user.name}
             </span>
-            <Avatar className="size-8 border border-border">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+            <Avatar className="size-9">
+              <AvatarFallback className="bg-surface/60 text-foreground text-sm font-bold">
                 {initials}
               </AvatarFallback>
             </Avatar>
           </DialogTrigger>
 
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserIcon className="size-5 text-primary" />
-                <span>User Profile</span>
+          <DialogContent className="glass-panel max-w-sm rounded-3xl p-8 border-muted/30 shadow-2xl">
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="text-2xl font-bold text-foreground">
+                Account
               </DialogTitle>
-              <DialogDescription>
-                Your authenticated account details and access privileges
-              </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
-              <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-3">
-                <Avatar className="size-12 border border-border">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm font-bold">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col min-w-0">
-                  <span className="font-semibold text-sm text-foreground truncate">
-                    {user.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user.email}
-                  </span>
-                  <div className="mt-1">
-                    <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider">
-                      {user.role}
-                    </Badge>
-                  </div>
+            <div className="space-y-6 py-4">
+              <div className="space-y-1">
+                <div className="text-xl font-bold text-foreground">{user.name}</div>
+                <div className="text-base text-muted-foreground">{user.email}</div>
+                <div className="text-sm font-semibold tracking-wide text-stat-1 uppercase pt-1">
+                  {user.role} {user.shopName ? `• ${user.shopName}` : ""}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg border border-border/60 bg-card p-2.5">
-                  <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                    <ShieldCheckIcon className="size-3.5" />
-                    <span>Role Access</span>
-                  </div>
-                  <span className="font-medium text-foreground">
-                    {user.role === "ADMIN"
-                      ? "Administrator (Full)"
-                      : user.role === "VERIFIER"
-                        ? "Verifier (All Shops)"
-                        : "Finance Officer (Assigned Shop)"}
+              <div className="space-y-3 pt-2">
+                <Button
+                  className="w-full justify-between h-14 rounded-2xl bg-surface/60 hover:bg-surface/90 text-foreground border border-muted/20 text-base font-medium px-5"
+                  render={<Link href={settingsHref} onClick={() => setProfileOpen(false)} />}
+                >
+                  <span className="flex items-center gap-3">
+                    <Settings className="size-5" />
+                    Settings
                   </span>
-                </div>
+                  <ArrowUpRight className="size-5" />
+                </Button>
 
-                <div className="rounded-lg border border-border/60 bg-card p-2.5">
-                  <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                    <BuildingIcon className="size-3.5" />
-                    <span>Assigned Shop</span>
-                  </div>
-                  <span className="font-medium text-foreground truncate block">
-                    {user.shopName || "Global / Unassigned"}
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    setLogoutDialogOpen(true);
+                  }}
+                  className="w-full justify-between h-14 rounded-2xl border-destructive/40 text-destructive hover:bg-destructive/30 bg-destructive/10 text-base font-medium px-5"
+                >
+                  <span className="flex items-center gap-3">
+                    <LogOut className="size-5" />
+                    Sign Out
                   </span>
-                </div>
+                  <ArrowUpRight className="size-5" />
+                </Button>
               </div>
-
-              <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border">
-                <div className="flex items-center gap-1">
-                  <ClockIcon className="size-3" />
-                  <span>Session Active: 8h Token</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                render={<Link href={settingsHref} onClick={() => setProfileOpen(false)} />}
-              >
-                <SettingsIcon className="size-4" />
-                <span>Full Settings</span>
-              </Button>
-
-              <Button
-                variant="destructive"
-                size="sm"
-                type="button"
-                onClick={() => {
-                  setProfileOpen(false);
-                  setLogoutDialogOpen(true);
-                }}
-                className="gap-1.5 cursor-pointer"
-              >
-                <LogOutIcon className="size-4" />
-                <span>Log Out</span>
-              </Button>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Logout Confirmation Alert Dialog */}
+        {/* Minimal Sign Out Dialog */}
         <AlertDialog
           open={logoutDialogOpen}
           onOpenChange={(open) => !isLoggingOut && setLogoutDialogOpen(open)}
         >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <div className="flex items-center gap-2 text-destructive">
-                <LogOutIcon className="size-5" />
-                <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-              </div>
-              <AlertDialogDescription>
-                Are you sure you want to log out of your session? Any unsaved changes in your current view may be lost.
+          <AlertDialogContent className="glass-panel max-w-md rounded-3xl p-8 border-muted/30">
+            <AlertDialogHeader className="space-y-3">
+              <AlertDialogTitle className="text-2xl font-bold text-foreground">
+                Sign Out
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-base text-muted-foreground">
+                Confirm ending your session.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="gap-3 pt-4">
+              <AlertDialogCancel
+                disabled={isLoggingOut}
+                className="h-12 rounded-xl text-base px-6 border-muted/30 hover:bg-surface/50 text-foreground"
+              >
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2 font-semibold"
+                className="h-12 rounded-xl text-base px-6 bg-foreground text-background hover:opacity-90 font-semibold gap-2"
               >
                 {isLoggingOut ? (
-                  <>
-                    <Loader2Icon className="size-4 animate-spin" />
-                    <span>Logging you out...</span>
-                  </>
+                  <Loader2 className="size-5 animate-spin" />
                 ) : (
                   <>
-                    <LogOutIcon className="size-4" />
-                    <span>Log Out</span>
+                    <span>Sign Out</span>
+                    <ArrowUpRight className="size-5" />
                   </>
                 )}
               </AlertDialogAction>

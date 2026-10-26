@@ -5,53 +5,26 @@ import {
   getPettyCashSummaryAction,
   topUpWithdrawPettyCashAction,
 } from "@/actions/pettyCash";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { DataTable } from "@/components/shared/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
-import {
-  WalletIcon,
-  DownloadIcon,
-  RefreshCwIcon,
-  PlusCircleIcon,
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CalendarIcon,
-  Building2Icon,
-  Loader2Icon,
+  Wallet,
+  Download,
+  RefreshCw,
+  Plus,
+  Loader2,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { useForm } from "react-hook-form";
@@ -79,7 +52,6 @@ export function PettyCashView({
   initialPeriodInflow,
   initialPeriodOutflow,
   initialRecords,
-  initialTimelineData,
   bankAccounts,
 }: PettyCashViewProps) {
   const [period, setPeriod] = React.useState<"today" | "week" | "month" | "year" | "custom">("month");
@@ -91,9 +63,7 @@ export function PettyCashView({
   const [periodInflow, setPeriodInflow] = React.useState(initialPeriodInflow);
   const [periodOutflow, setPeriodOutflow] = React.useState(initialPeriodOutflow);
   const [records, setRecords] = React.useState(initialRecords);
-  const [timelineData, setTimelineData] = React.useState(initialTimelineData);
 
-  // Top-Up / Withdrawal Modal
   const [actionOpen, setActionOpen] = React.useState(false);
 
   const form = useForm<PettyCashTransactionInput>({
@@ -121,13 +91,12 @@ export function PettyCashView({
         setPeriodInflow(res.periodInflow || 0);
         setPeriodOutflow(res.periodOutflow || 0);
         setRecords(res.records || []);
-        setTimelineData(res.timelineData || []);
       }
     } catch (err) {
       console.error(err);
       toast.create({
-        title: "Error fetching data",
-        description: "Failed to load petty cash data",
+        title: "Error",
+        description: "Failed to load petty cash data.",
         type: "error",
       });
     } finally {
@@ -144,24 +113,23 @@ export function PettyCashView({
       const res = await topUpWithdrawPettyCashAction(data);
       if (res.success) {
         toast.create({
-          title: "Petty cash updated",
-          description: res.message || "Transaction processed successfully",
-          type: "success",
+          title: "Operation recorded",
+          description: "Petty cash updated.",
         });
         setActionOpen(false);
         form.reset();
         fetchData();
       } else {
         toast.create({
-          title: "Transaction failed",
-          description: res.error || "Failed to process petty cash update",
+          title: "Failed",
+          description: res.error || "Could not process transaction.",
           type: "error",
         });
       }
     } catch {
       toast.create({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred.",
         type: "error",
       });
     }
@@ -170,17 +138,16 @@ export function PettyCashView({
   const exportCSV = () => {
     if (!records.length) {
       toast.create({
-        title: "No records",
-        description: "No petty cash records found for export.",
-        type: "warning",
+        title: "Export empty",
+        description: "No records found.",
       });
       return;
     }
 
-    const headers = ["Date", "Branch / Center", "Bill Number", "Reason", "Type", "Amount (LKR)", "Status"];
+    const headers = ["Date", "Branch", "Bill Number", "Reason", "Type", "Amount (LKR)", "Status"];
     const rows = records.map((r) => [
       `"${new Date(r.date).toISOString().split("T")[0]}"`,
-      `"${r.shop?.name || "Global"}"`,
+      `"${r.shop?.name || "Central"}"`,
       `"${r.billNumber || ""}"`,
       `"${(r.reason || "").replace(/"/g, '""')}"`,
       `"${r.type}"`,
@@ -195,16 +162,10 @@ export function PettyCashView({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Petty_Cash_${period}_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `Petty_Cash_${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
-    toast.create({
-      title: "Export complete",
-      description: `Downloaded ${records.length} petty cash records in CSV format.`,
-      type: "success",
-    });
   };
 
   const columns: ColumnDef<any>[] = [
@@ -212,7 +173,7 @@ export function PettyCashView({
       accessorKey: "date",
       header: "Date",
       cell: ({ row }) => (
-        <span className="font-mono text-xs">
+        <span className="font-mono text-base font-semibold text-foreground">
           {new Date(row.original.date).toLocaleDateString()}
         </span>
       ),
@@ -221,7 +182,7 @@ export function PettyCashView({
       accessorKey: "shop.name",
       header: "Branch",
       cell: ({ row }) => (
-        <span className="font-medium text-xs text-foreground">
+        <span className="text-base font-bold text-foreground">
           {row.original.shop?.name || "Central Petty Cash"}
         </span>
       ),
@@ -230,28 +191,28 @@ export function PettyCashView({
       accessorKey: "billNumber",
       header: "Bill No",
       cell: ({ row }) => (
-        <span className="font-mono text-xs text-primary font-semibold">
+        <span className="font-mono text-base font-bold text-stat-1">
           {row.original.billNumber}
         </span>
       ),
     },
     {
       accessorKey: "reason",
-      header: "Description / Reason",
+      header: "Notes",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground truncate max-w-xs block">
-          {row.original.reason}
+        <span className="text-base text-muted-foreground truncate max-w-xs block">
+          {row.original.reason || "—"}
         </span>
       ),
     },
     {
       accessorKey: "amount",
-      header: "Amount (LKR)",
+      header: "Amount",
       cell: ({ row }) => {
         const isIncome = row.original.type === "INCOME";
         const val = row.original.approvedAmount ?? row.original.amount;
         return (
-          <span className={`font-mono text-xs font-semibold ${isIncome ? "text-chart-2" : "text-foreground"}`}>
+          <span className={`font-mono text-base font-bold ${isIncome ? "text-stat-1" : "text-foreground"}`}>
             {isIncome ? "+" : "-"} LKR {Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         );
@@ -264,318 +225,199 @@ export function PettyCashView({
     },
   ];
 
-  const chartConfig: ChartConfig = {
-    income: { label: "Petty Inflows", color: "var(--chart-2)" },
-    expense: { label: "Petty Outflows", color: "var(--chart-1)" },
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="flex flex-col justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-sm md:flex-row md:items-center">
-        <div className="flex items-center gap-4">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <WalletIcon className="size-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Central Petty Cash Account
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Manage organization-wide petty cash float, disbursements, and branch expenses
-            </p>
-          </div>
+    <div className="space-y-10">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+            Petty Cash
+          </h1>
+          <p className="text-base text-muted-foreground">
+            Central Float & Immediate Operational Disbursements
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
-            onClick={() => {
-              form.reset({
-                type: "TOP_UP",
-                amount: 10000,
-                reason: "",
-                date: new Date().toISOString().split("T")[0],
-                sourceBankAccount: "",
-              });
-              setActionOpen(true);
-            }}
-            size="sm"
-            className="gap-1.5 text-xs"
+            variant="outline"
+            onClick={fetchData}
+            disabled={loading}
+            className="h-14 rounded-2xl bg-surface/40 hover:bg-surface/70 border border-muted/20 text-foreground text-base font-semibold px-5 gap-2.5"
           >
-            <PlusCircleIcon className="size-3.5" />
-            Top-Up / Withdraw Float
+            <RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} />
+            <span>Sync</span>
+          </Button>
+
+          <Button
+            onClick={() => setActionOpen(true)}
+            className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 text-base font-semibold px-6 gap-3 justify-between"
+          >
+            <Plus className="size-5" />
+            <span>Top-up / Withdraw</span>
+            <ArrowUpRight className="size-5" />
           </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border bg-card p-4 shadow-sm">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Available Petty Cash Float
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
+            <span>Float Balance</span>
+            <Wallet className="size-6 text-foreground" />
           </div>
-          <div className={`text-2xl font-bold font-mono mt-1 ${account.currentBalance >= 0 ? "text-chart-2" : "text-destructive"}`}>
+          <div className="text-3xl font-bold font-mono text-stat-1">
             LKR {Number(account.currentBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">
-            Active cash on hand balance
-          </div>
-        </Card>
+        </div>
 
-        <Card className="border-border bg-card p-4 shadow-sm">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Period Total Inflows
-          </div>
-          <div className="text-2xl font-bold font-mono mt-1 text-chart-2">
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="text-base font-semibold text-muted-foreground">Period Top-ups</div>
+          <div className="text-3xl font-bold font-mono text-stat-1">
             LKR {Number(periodInflow || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">
-            Float replenishments & refunds
-          </div>
-        </Card>
+        </div>
 
-        <Card className="border-border bg-card p-4 shadow-sm">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Period Total Outflows
-          </div>
-          <div className="text-2xl font-bold font-mono mt-1 text-foreground">
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="text-base font-semibold text-muted-foreground">Period Disbursements</div>
+          <div className="text-3xl font-bold font-mono text-foreground">
             LKR {Number(periodOutflow || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">
-            Branch petty cash disbursements
-          </div>
-        </Card>
+        </div>
 
-        <Card className="border-border bg-card p-4 shadow-sm">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Net Period Flow
-          </div>
-          <div className={`text-2xl font-bold font-mono mt-1 ${(periodInflow - periodOutflow) >= 0 ? "text-chart-2" : "text-destructive"}`}>
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="text-base font-semibold text-muted-foreground">Net Float Movement</div>
+          <div className="text-3xl font-bold font-mono text-stat-2">
             LKR {Number(periodInflow - periodOutflow).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">
-            Inflows minus outflows in range
-          </div>
-        </Card>
-      </div>
-
-      {/* Filter and Period Selector */}
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={period} onValueChange={(val: any) => setPeriod(val)} className="w-auto">
-            <TabsList className="bg-muted">
-              <TabsTrigger value="today" className="text-xs">Day (Today)</TabsTrigger>
-              <TabsTrigger value="week" className="text-xs">Week</TabsTrigger>
-              <TabsTrigger value="month" className="text-xs">Month</TabsTrigger>
-              <TabsTrigger value="year" className="text-xs">Year</TabsTrigger>
-              <TabsTrigger value="custom" className="text-xs">Custom Range</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {period === "custom" && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-36 text-xs"
-              />
-              <span className="text-xs text-muted-foreground">to</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 w-36 text-xs"
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchData}
-            disabled={loading}
-            className="gap-1.5 text-xs"
-          >
-            <RefreshCwIcon className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={exportCSV}
-            className="gap-1.5 text-xs"
-          >
-            <DownloadIcon className="size-3.5" />
-            Export CSV
-          </Button>
         </div>
       </div>
 
-      {/* Chart Section */}
-      <Card className="border-border bg-card shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Petty Cash Inflow vs Outflow Volume</CardTitle>
-          <CardDescription>
-            Chronological comparison of petty cash disbursements vs top-ups
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-64">
-          {timelineData.length > 0 ? (
-            <ChartContainer config={chartConfig} className="h-full w-full">
-              <BarChart data={timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  className="text-[10px] fill-muted-foreground"
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  className="text-[10px] fill-muted-foreground"
-                  tickFormatter={(val) => `${val / 1000}k`}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="income" fill="var(--color-chart-2)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              No petty cash activity recorded in the selected period.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Transactions DataTable */}
-      <div className="space-y-3">
+      {/* Transactions Section */}
+      <div className="glass-panel rounded-3xl p-6 sm:p-10 space-y-6 border-muted/20 shadow-lg">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Petty Cash Transactions</h2>
-            <p className="text-xs text-muted-foreground">
-              All transactions recorded with payment method as Petty Cash
-            </p>
-          </div>
-          <Badge variant="outline" className="text-xs font-mono">
-            {records.length} Record{records.length !== 1 ? "s" : ""}
-          </Badge>
+          <h2 className="text-2xl font-bold text-foreground">
+            Disbursements & Top-ups
+          </h2>
+          <Button
+            onClick={exportCSV}
+            className="h-12 rounded-xl bg-surface/50 hover:bg-surface/80 border border-muted/20 text-foreground text-sm font-semibold px-4 gap-2"
+          >
+            <Download className="size-4" />
+            <span>CSV</span>
+          </Button>
         </div>
 
         <DataTable
           columns={columns}
           data={records}
-          searchKey="reason"
-          searchPlaceholder="Search petty cash transactions by reason or description..."
+          searchKey="billNumber"
+          searchPlaceholder="Search bill number..."
           loading={loading}
         />
       </div>
 
       {/* TOP-UP / WITHDRAW MODAL */}
       <Dialog open={actionOpen} onOpenChange={setActionOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Petty Cash Float Management</DialogTitle>
-            <DialogDescription>
-              Replenish (Top-Up) or Withdraw money from the central petty cash fund
-            </DialogDescription>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Petty Cash Operation
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground font-normal">
+              Record a float replenishment or cash disbursement for this branch.
+            </p>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onActionSubmit)} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Action Type</label>
-              <Select
-                value={form.watch("type")}
-                onValueChange={(val: any) => form.setValue("type", val)}
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select Action" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TOP_UP">Top-Up (Replenish Petty Cash Float)</SelectItem>
-                  <SelectItem value="WITHDRAWAL">Withdrawal (Transfer Out from Float)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Amount (LKR)</label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="10000"
-                {...form.register("amount", { valueAsNumber: true })}
-                className="h-9 text-xs font-mono"
-              />
-              {form.formState.errors.amount && (
-                <p className="text-xs text-destructive">{form.formState.errors.amount.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Date</label>
-              <Input
-                type="date"
-                {...form.register("date")}
-                className="h-9 text-xs"
-              />
-            </div>
-
-            {bankAccounts.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase text-muted-foreground">
-                  {form.watch("type") === "TOP_UP" ? "Source Bank Account (Optional)" : "Destination Bank Account (Optional)"}
+          <form onSubmit={form.handleSubmit(onActionSubmit)} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Action Type
                 </label>
-                <Select
-                  value={form.watch("sourceBankAccount") || "NONE"}
-                  onValueChange={(val) => form.setValue("sourceBankAccount", val === "NONE" ? "" : val)}
+                <select
+                  {...form.register("type")}
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder={form.watch("type") === "TOP_UP" ? "Select funding bank account (optional)" : "Select deposit bank account (optional)"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">{form.watch("type") === "TOP_UP" ? "Direct Cash / External Float" : "Cash In Hand / External Withdrawal"}</SelectItem>
-                    {bankAccounts.map((b) => (
-                      <SelectItem key={b._id} value={b._id}>
-                        {b.bankName} - {b.accountNumber} (Bal: LKR {b.currentBalance.toLocaleString()})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">
-                  {form.watch("type") === "TOP_UP"
-                    ? "If selected, funds will be deducted from the bank account, and transaction records will be created in both Petty Cash and Bank Account ledgers."
-                    : "If selected, funds will be credited to the bank account, and transaction records will be created in both Petty Cash and Bank Account ledgers."}
-                </p>
+                  <option value="TOP_UP">Replenish / Top-up Float (+)</option>
+                  <option value="WITHDRAW">Emergency Disbursement (-)</option>
+                </select>
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Reason / Description</label>
-              <Textarea
-                placeholder="e.g. Month beginning float replenishment"
-                {...form.register("reason")}
-                className="text-xs"
-                rows={2}
-              />
-              {form.formState.errors.reason && (
-                <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>
-              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Amount (LKR)
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  {...form.register("amount", { valueAsNumber: true })}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
+                />
+              </div>
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setActionOpen(false)}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Date
+                </label>
+                <Input
+                  type="date"
+                  {...form.register("date")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-medium"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Funding Bank Account (Optional)
+                </label>
+                <select
+                  {...form.register("sourceBankAccount")}
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="">Direct Cash / External</option>
+                  {bankAccounts.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.bankName} ({b.accountNumber.slice(-4)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Notes
+              </label>
+              <Textarea
+                placeholder="Disbursement purpose or cashier voucher note"
+                {...form.register("reason")}
+                className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
+                rows={3}
+              />
+            </div>
+
+            <DialogFooter className="gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setActionOpen(false)}
+                className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+              >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
-                Save Transaction
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting}
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
+              >
+                {form.formState.isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <span>Record Transaction</span>
+                )}
               </Button>
             </DialogFooter>
           </form>

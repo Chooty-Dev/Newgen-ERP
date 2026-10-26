@@ -1,5 +1,4 @@
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2Icon, ClockIcon, XCircleIcon } from "lucide-react";
+import { CheckCircle2, Clock, XCircle } from "lucide-react";
 
 interface StatusBadgeProps {
   status: "PENDING" | "APPROVED" | "REJECTED" | string;
@@ -10,34 +9,31 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   switch (status) {
     case "APPROVED":
       return (
-        <Badge
-          variant="outline"
-          className={`border-chart-2/40 bg-chart-2/15 text-foreground font-semibold inline-flex items-center gap-1 ${className || ""}`}
+        <span
+          className={`inline-flex items-center gap-1.5 text-sm font-semibold text-stat-1 ${className || ""}`}
         >
-          <CheckCircle2Icon className="size-3 text-chart-2" />
+          <CheckCircle2 className="size-4" />
           <span>Approved</span>
-        </Badge>
+        </span>
       );
     case "REJECTED":
       return (
-        <Badge
-          variant="destructive"
-          className={`inline-flex items-center gap-1 font-semibold ${className || ""}`}
+        <span
+          className={`inline-flex items-center gap-1.5 text-sm font-semibold text-destructive ${className || ""}`}
         >
-          <XCircleIcon className="size-3" />
+          <XCircle className="size-4" />
           <span>Rejected</span>
-        </Badge>
+        </span>
       );
     case "PENDING":
     default:
       return (
-        <Badge
-          variant="secondary"
-          className={`inline-flex items-center gap-1 font-medium ${className || ""}`}
+        <span
+          className={`inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground ${className || ""}`}
         >
-          <ClockIcon className="size-3 text-muted-foreground" />
+          <Clock className="size-4" />
           <span>Pending</span>
-        </Badge>
+        </span>
       );
   }
 }

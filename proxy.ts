@@ -9,8 +9,8 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth?.user;
   const role = (req.auth?.user as { role?: string })?.role;
 
-  const isAuthPage = nextUrl.pathname.startsWith("/login");
-  const isDashboardPage = nextUrl.pathname.startsWith("/dashboard");
+  const isAuthPage = nextUrl.pathname === "/login" || nextUrl.pathname.startsWith("/login/");
+  const isDashboardPage = nextUrl.pathname === "/dashboard" || nextUrl.pathname.startsWith("/dashboard/");
 
   // Determine role home path
   const getRoleHome = (userRole?: string) => {
@@ -59,5 +59,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };

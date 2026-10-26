@@ -12,12 +12,10 @@ import {
 import { DataTable } from "@/components/shared/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -41,15 +39,15 @@ import {
   UpdateUserInput,
 } from "@/schemas/user";
 import {
-  UserPlusIcon,
-  EditIcon,
-  StoreIcon,
-  UserXIcon,
-  UserCheckIcon,
-  ShieldIcon,
-  BuildingIcon,
-  Loader2Icon,
-  CheckIcon,
+  UserPlus,
+  Edit,
+  Store,
+  UserX,
+  UserCheck,
+  Building,
+  Loader2,
+  Check,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
@@ -100,62 +98,52 @@ function BranchCheckboxList({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
-          <BuildingIcon className="size-3.5 text-primary" />
-          <span>Assigned Branches ({selectedShopIds.length}/{shops.length})</span>
-        </span>
-        <button
-          type="button"
-          onClick={toggleAll}
-          className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
-        >
-          {allSelected ? "Clear All" : "Select All"}
-        </button>
-      </div>
-
-      <div className="max-h-52 overflow-y-auto rounded-lg border border-border bg-card p-1.5 space-y-1 divide-y divide-border/30">
-        {shops.length === 0 ? (
-          <div className="p-3 text-center text-xs text-muted-foreground">No active branches found.</div>
-        ) : (
-          shops.map((s) => {
-            const isChecked = selectedShopIds.includes(s._id);
-            return (
-              <div
-                key={s._id}
-                onClick={() => toggleShop(s._id)}
-                className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs select-none ${
-                  isChecked
-                    ? "bg-primary/10 border border-primary/30 text-foreground"
-                    : "hover:bg-muted/40 text-muted-foreground"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`size-4 rounded flex items-center justify-center border transition-colors ${
-                      isChecked
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "border-border bg-background"
-                    }`}
-                  >
-                    {isChecked && <CheckIcon className="size-3" />}
-                  </div>
-                  <span className={`font-medium ${isChecked ? "text-foreground font-semibold" : "text-foreground/90"}`}>
-                    {s.name}
-                  </span>
-                </div>
-                <Badge variant="outline" className="font-mono text-[10px] uppercase">
-                  {s.code}
-                </Badge>
-              </div>
-            );
-          })
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="text-base font-semibold text-foreground">
+          Assigned Branches
+        </label>
+        {shops.length > 1 && (
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {allSelected ? "Clear all" : "Select all"}
+          </button>
         )}
       </div>
-      {selectedShopIds.length === 0 && (
-        <p className="text-[11px] text-destructive">Please select at least one branch for this staff member.</p>
-      )}
+
+      <div className="max-h-48 overflow-y-auto rounded-2xl border border-muted/30 bg-surface/30 p-3 space-y-2 no-scrollbar">
+        {shops.map((s) => {
+          const isChecked = selectedShopIds.includes(s._id);
+          return (
+            <label
+              key={s._id}
+              onClick={() => toggleShop(s._id)}
+              className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface/50 cursor-pointer transition-colors"
+            >
+              <div
+                className={`flex size-6 items-center justify-center rounded-lg border transition-colors ${
+                  isChecked
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-muted/40 bg-surface/30"
+                }`}
+              >
+                {isChecked && <Check className="size-4" />}
+              </div>
+              <span className="text-base font-medium text-foreground">
+                {s.name} ({s.code})
+              </span>
+            </label>
+          );
+        })}
+        {shops.length === 0 && (
+          <p className="text-sm text-muted-foreground py-2 text-center">
+            No branches found.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -170,35 +158,30 @@ export function UsersView({
   const [users, setUsers] = React.useState<UserItem[]>(initialUsers);
   const [loading, setLoading] = React.useState(false);
 
-  // Modal states
+  // Modals
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [reassignOpen, setReassignOpen] = React.useState(false);
   const [confirmToggleUser, setConfirmToggleUser] = React.useState<UserItem | null>(null);
 
   const [selectedUser, setSelectedUser] = React.useState<UserItem | null>(null);
-
-  // Multi-shop selection states
-  const [createShopIds, setCreateShopIds] = React.useState<string[]>(
-    shops[0]?._id ? [shops[0]._id] : []
-  );
+  const [createShopIds, setCreateShopIds] = React.useState<string[]>([]);
   const [editShopIds, setEditShopIds] = React.useState<string[]>([]);
   const [reassignShopIds, setReassignShopIds] = React.useState<string[]>([]);
 
-  // Create Form
   const createForm = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       name: "",
       email: "",
       password: "",
-      phone: "",
       role: "STAFF",
-      shop: shops[0]?._id || "",
+      phone: "",
+      shop: "",
+      shops: [],
     },
   });
 
-  // Edit Form
   const editForm = useForm<UpdateUserInput>({
     resolver: zodResolver(updateUserSchema),
     defaultValues: {
@@ -207,13 +190,11 @@ export function UsersView({
       phone: "",
       role: "STAFF",
       shop: "",
+      shops: [],
       isActive: true,
       password: "",
     },
   });
-
-  const selectedCreateRole = createForm.watch("role");
-  const selectedEditRole = editForm.watch("role");
 
   const refreshUsers = async () => {
     setLoading(true);
@@ -225,35 +206,25 @@ export function UsersView({
   };
 
   const onCreateSubmit = async (data: CreateUserInput) => {
-    if (data.role === "STAFF" && createShopIds.length === 0) {
-      toast.create({
-        title: "Branch required",
-        description: "Please select at least one branch for this staff member.",
-        type: "error",
-      });
-      return;
-    }
-
     const payload = {
       ...data,
       shops: data.role === "STAFF" ? createShopIds : [],
-      shop: data.role === "STAFF" && createShopIds.length > 0 ? createShopIds[0] : null,
+      shop: data.role === "STAFF" && createShopIds.length > 0 ? createShopIds[0] : undefined,
     };
-
     const res = await createUserAction(payload);
     if (res.success) {
       toast.create({
-        title: "User created",
-        description: "New user account created successfully.",
+        title: "User registered",
+        description: "New account created successfully.",
       });
       setCreateOpen(false);
       createForm.reset();
-      setCreateShopIds(shops[0]?._id ? [shops[0]._id] : []);
+      setCreateShopIds([]);
       refreshUsers();
     } else {
       toast.create({
-        title: "Failed to create user",
-        description: res.error || "An error occurred",
+        title: "Registration failed",
+        description: res.error || "An error occurred.",
         type: "error",
       });
     }
@@ -261,33 +232,23 @@ export function UsersView({
 
   const onEditSubmit = async (data: UpdateUserInput) => {
     if (!selectedUser) return;
-    if (data.role === "STAFF" && editShopIds.length === 0) {
-      toast.create({
-        title: "Branch required",
-        description: "Please select at least one branch for this staff member.",
-        type: "error",
-      });
-      return;
-    }
-
     const payload = {
       ...data,
       shops: data.role === "STAFF" ? editShopIds : [],
-      shop: data.role === "STAFF" && editShopIds.length > 0 ? editShopIds[0] : null,
+      shop: data.role === "STAFF" && editShopIds.length > 0 ? editShopIds[0] : undefined,
     };
-
     const res = await updateUserAction(selectedUser._id, payload);
     if (res.success) {
       toast.create({
         title: "User updated",
-        description: "User details updated successfully.",
+        description: "Account details saved.",
       });
       setEditOpen(false);
       refreshUsers();
     } else {
       toast.create({
-        title: "Failed to update user",
-        description: res.error || "An error occurred",
+        title: "Update failed",
+        description: res.error || "An error occurred.",
         type: "error",
       });
     }
@@ -331,7 +292,7 @@ export function UsersView({
     if (!selectedUser || reassignShopIds.length === 0) {
       toast.create({
         title: "Selection required",
-        description: "Please select at least one branch to assign.",
+        description: "Select at least one branch.",
         type: "error",
       });
       return;
@@ -342,15 +303,15 @@ export function UsersView({
     });
     if (res.success) {
       toast.create({
-        title: "Branches assigned",
-        description: res.message || "Officer assigned successfully.",
+        title: "Branch assignment updated",
+        description: res.message || "Updated successfully.",
       });
       setReassignOpen(false);
       refreshUsers();
     } else {
       toast.create({
         title: "Assignment failed",
-        description: res.error || "Could not assign branches.",
+        description: res.error || "Could not reassign branches.",
         type: "error",
       });
     }
@@ -360,14 +321,14 @@ export function UsersView({
     const res = await unassignShopAction(userId);
     if (res.success) {
       toast.create({
-        title: "Shops unassigned",
+        title: "Unassigned",
         description: res.message,
       });
       refreshUsers();
     } else {
       toast.create({
         title: "Action failed",
-        description: res.error || "Failed to unassign shops",
+        description: res.error || "Could not unassign branches.",
         type: "error",
       });
     }
@@ -379,45 +340,38 @@ export function UsersView({
     if (res.success) {
       toast.create({
         title: res.isActive ? "User activated" : "User deactivated",
-        description: `${confirmToggleUser.name} has been ${res.isActive ? "activated" : "deactivated"}.`,
+        description: `Status updated.`,
       });
       setConfirmToggleUser(null);
       refreshUsers();
     } else {
       toast.create({
         title: "Action failed",
-        description: res.error || "Failed to toggle user status",
+        description: res.error || "Could not toggle status.",
         type: "error",
       });
     }
   };
 
-  // Table Columns
   const columns: ColumnDef<UserItem>[] = [
     {
       accessorKey: "name",
-      header: "Name & Contact",
+      header: "User",
       cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span className="font-semibold text-foreground text-xs">{row.original.name}</span>
-          <span className="text-[11px] text-muted-foreground">{row.original.email}</span>
+        <div className="space-y-0.5">
+          <div className="font-bold text-base text-foreground">{row.original.name}</div>
+          <div className="text-sm text-muted-foreground">{row.original.email}</div>
         </div>
       ),
     },
     {
       accessorKey: "role",
       header: "Role",
-      cell: ({ row }) => {
-        const role = row.original.role;
-        return (
-          <Badge
-            variant={role === "ADMIN" ? "default" : role === "VERIFIER" ? "outline" : "secondary"}
-            className="text-[10px] font-mono uppercase"
-          >
-            {role === "ADMIN" ? "Administrator" : role === "VERIFIER" ? "Finance Verifier" : "Finance Officer"}
-          </Badge>
-        );
-      },
+      cell: ({ row }) => (
+        <span className="text-base font-semibold text-stat-1 uppercase">
+          {row.original.role}
+        </span>
+      ),
     },
     {
       accessorKey: "shop.name",
@@ -425,7 +379,7 @@ export function UsersView({
       cell: ({ row }) => {
         const user = row.original;
         if (user.role !== "STAFF") {
-          return <span className="text-muted-foreground text-xs italic">All Branches (Global)</span>;
+          return <span className="text-base text-muted-foreground">Global Access</span>;
         }
 
         const userShops =
@@ -436,38 +390,13 @@ export function UsersView({
             : [];
 
         if (userShops.length === 0) {
-          return (
-            <Badge variant="destructive" className="text-[10px]">
-              Unassigned
-            </Badge>
-          );
+          return <span className="text-base text-destructive font-semibold">Unassigned</span>;
         }
 
-        const visibleShops = userShops.slice(0, 2);
-        const hiddenCount = userShops.length - visibleShops.length;
-        const allShopNames = userShops.map((s) => `${s.name} (${s.code})`).join(", ");
-
         return (
-          <div className="flex flex-wrap items-center gap-1.5" title={allShopNames}>
-            {visibleShops.map((s) => (
-              <Badge
-                key={s._id}
-                variant="outline"
-                className="text-[10px] font-mono bg-muted/40 border-border text-foreground"
-              >
-                {s.name} ({s.code})
-              </Badge>
-            ))}
-            {hiddenCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="text-[10px] font-mono cursor-pointer hover:bg-muted"
-                title={userShops.slice(2).map((s) => `${s.name} (${s.code})`).join(", ")}
-              >
-                +{hiddenCount} more
-              </Badge>
-            )}
-          </div>
+          <span className="text-base font-medium text-foreground">
+            {userShops.map((s) => s.name).join(", ")}
+          </span>
         );
       },
     },
@@ -475,20 +404,12 @@ export function UsersView({
       accessorKey: "isActive",
       header: "Status",
       cell: ({ row }) => (
-        <Badge
-          variant={row.original.isActive ? "outline" : "destructive"}
-          className={`text-[10px] ${row.original.isActive ? "border-chart-2/40 bg-chart-2/15 text-foreground" : ""}`}
+        <span
+          className={`text-base font-semibold ${
+            row.original.isActive ? "text-stat-1" : "text-destructive"
+          }`}
         >
-          {row.original.isActive ? "Active" : "Deactivated"}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "lastLoginAt",
-      header: "Last Login",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground font-mono">
-          {row.original.lastLoginAt ? new Date(row.original.lastLoginAt).toLocaleString() : "Never"}
+          {row.original.isActive ? "Active" : "Disabled"}
         </span>
       ),
     },
@@ -502,49 +423,47 @@ export function UsersView({
         );
 
         return (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-xs"
+          <div className="flex items-center gap-2">
+            <button
               onClick={() => openEditModal(user)}
-              title="Edit User"
+              className="p-2 rounded-xl text-foreground hover:bg-surface/50 transition-colors"
+              title="Edit"
             >
-              <EditIcon className="size-3.5" />
-            </Button>
+              <Edit className="size-5" />
+            </button>
 
             {user.role === "STAFF" && (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
+                <button
                   onClick={() => openReassignModal(user)}
-                  title="Assign / Reassign Branches"
+                  className="p-2 rounded-xl text-foreground hover:bg-surface/50 transition-colors"
+                  title="Assign Branches"
                 >
-                  <StoreIcon className="size-3.5" />
-                </Button>
+                  <Store className="size-5" />
+                </button>
                 {hasAssignedShops && (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
+                  <button
                     onClick={() => handleUnassignShop(user._id)}
-                    title="Unassign All Branches"
-                    className="text-warning hover:text-warning"
+                    className="p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors"
+                    title="Unassign Branches"
                   >
-                    <BuildingIcon className="size-3.5" />
-                  </Button>
+                    <Building className="size-5" />
+                  </button>
                 )}
               </>
             )}
 
-            <Button
-              variant="ghost"
-              size="icon-xs"
+            <button
               onClick={() => setConfirmToggleUser(user)}
-              title={user.isActive ? "Deactivate User" : "Activate User"}
-              className={user.isActive ? "text-destructive hover:text-destructive" : "text-chart-2 hover:text-chart-2"}
+              className={`p-2 rounded-xl transition-colors ${
+                user.isActive
+                  ? "text-destructive hover:bg-destructive/10"
+                  : "text-stat-1 hover:bg-surface/50"
+              }`}
+              title={user.isActive ? "Deactivate" : "Activate"}
             >
-              {user.isActive ? <UserXIcon className="size-3.5" /> : <UserCheckIcon className="size-3.5" />}
-            </Button>
+              {user.isActive ? <UserX className="size-5" /> : <UserCheck className="size-5" />}
+            </button>
           </div>
         );
       },
@@ -552,78 +471,119 @@ export function UsersView({
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header Actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">User Management</h2>
-          <p className="text-xs text-muted-foreground">
-            Control user access, assign multiple branches to officers, manage roles, and review security statuses
+    <div className="space-y-10">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+            Users
+          </h1>
+          <p className="text-base text-muted-foreground">
+            Account Privileges & Branch Assignments
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-2">
-          <UserPlusIcon className="size-4" />
-          Add User
+
+        <Button
+          onClick={() => setCreateOpen(true)}
+          className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 text-base font-semibold px-6 gap-3 justify-between"
+        >
+          <UserPlus className="size-5" />
+          <span>Add User</span>
+          <ArrowUpRight className="size-5" />
         </Button>
       </div>
 
-      {/* Users Table */}
-      <DataTable
-        columns={columns}
-        data={users}
-        searchKey="name"
-        searchPlaceholder="Search users by name..."
-        loading={loading}
-      />
+      <div className="glass-panel rounded-3xl p-6 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+        <DataTable
+          columns={columns}
+          data={users}
+          searchKey="name"
+          searchPlaceholder="Search user name..."
+          loading={loading}
+        />
+      </div>
 
       {/* CREATE USER DIALOG */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-            <DialogDescription>
-              Create a new user account with role-based permissions
-            </DialogDescription>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Add User
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground font-normal">
+              Register a new administrative or branch staff user profile.
+            </p>
           </DialogHeader>
 
-          <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Full Name</label>
-              <Input placeholder="John Doe" {...createForm.register("name")} className="h-9 text-xs" />
-              {createForm.formState.errors.name && (
-                <p className="text-xs text-destructive">{createForm.formState.errors.name.message}</p>
-              )}
+          <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Full Name
+                </label>
+                <Input
+                  placeholder="e.g. John Silva"
+                  {...createForm.register("name")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
+                {createForm.formState.errors.name && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.name.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Email Address
+                </label>
+                <Input
+                  type="email"
+                  placeholder="name@newgen.lk"
+                  {...createForm.register("email")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
+                {createForm.formState.errors.email && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.email.message}
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Email</label>
-              <Input type="email" placeholder="officer@newgen.lk" {...createForm.register("email")} className="h-9 text-xs" />
-              {createForm.formState.errors.email && (
-                <p className="text-xs text-destructive">{createForm.formState.errors.email.message}</p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Temporary Password
+                </label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  {...createForm.register("password")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
+                {createForm.formState.errors.password && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Access Role
+                </label>
+                <select
+                  {...createForm.register("role")}
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="STAFF">Finance Officer (Branch Staff)</option>
+                  <option value="VERIFIER">Verifier (Cross-Branch Reviewer)</option>
+                  <option value="ADMIN">Administrator (Full Access)</option>
+                </select>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Password (min 8 chars, 1 uppercase, 1 special)</label>
-              <Input type="password" placeholder="••••••••" {...createForm.register("password")} className="h-9 text-xs" />
-              {createForm.formState.errors.password && (
-                <p className="text-xs text-destructive">{createForm.formState.errors.password.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Role</label>
-              <select
-                {...createForm.register("role")}
-                className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="STAFF" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Finance Officer (STAFF)</option>
-                <option value="VERIFIER" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Finance Verifier</option>
-                <option value="ADMIN" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Administrator</option>
-              </select>
-            </div>
-
-            {selectedCreateRole === "STAFF" && (
+            {createForm.watch("role") === "STAFF" && (
               <BranchCheckboxList
                 shops={shops}
                 selectedShopIds={createShopIds}
@@ -631,23 +591,24 @@ export function UsersView({
               />
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Phone</label>
-              <Input placeholder="+94 77 123 4567" {...createForm.register("phone")} className="h-9 text-xs" />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
+            <DialogFooter className="gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+                className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+              >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createForm.formState.isSubmitting}>
+              <Button
+                type="submit"
+                disabled={createForm.formState.isSubmitting}
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
+              >
                 {createForm.formState.isSubmitting ? (
-                  <>
-                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
-                    Creating...
-                  </>
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  "Create User"
+                  <span>Save User</span>
                 )}
               </Button>
             </DialogFooter>
@@ -657,52 +618,69 @@ export function UsersView({
 
       {/* EDIT USER DIALOG */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Modify profile details, branch assignments, or reset password
-            </DialogDescription>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Edit User
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground font-normal">
+              Modify account credentials, permissions, and shop allocations.
+            </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Full Name</label>
-              <Input {...editForm.register("name")} className="h-9 text-xs" />
-              {editForm.formState.errors.name && (
-                <p className="text-xs text-destructive">{editForm.formState.errors.name.message}</p>
-              )}
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Full Name
+                </label>
+                <Input
+                  {...editForm.register("name")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Email Address
+                </label>
+                <Input
+                  type="email"
+                  {...editForm.register("email")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Email</label>
-              <Input type="email" {...editForm.register("email")} className="h-9 text-xs" />
-              {editForm.formState.errors.email && (
-                <p className="text-xs text-destructive">{editForm.formState.errors.email.message}</p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Reset Password (Optional)
+                </label>
+                <Input
+                  type="password"
+                  placeholder="Leave blank to keep unchanged"
+                  {...editForm.register("password")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Access Role
+                </label>
+                <select
+                  {...editForm.register("role")}
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="STAFF">Finance Officer (Branch Staff)</option>
+                  <option value="VERIFIER">Verifier (Cross-Branch Reviewer)</option>
+                  <option value="ADMIN">Administrator (Full Access)</option>
+                </select>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Reset Password (leave empty to keep current)</label>
-              <Input type="password" placeholder="New password..." {...editForm.register("password")} className="h-9 text-xs" />
-              {editForm.formState.errors.password && (
-                <p className="text-xs text-destructive">{editForm.formState.errors.password.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Role</label>
-              <select
-                {...editForm.register("role")}
-                className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="STAFF" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Finance Officer (STAFF)</option>
-                <option value="VERIFIER" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Finance Verifier</option>
-                <option value="ADMIN" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Administrator</option>
-              </select>
-            </div>
-
-            {selectedEditRole === "STAFF" && (
+            {editForm.watch("role") === "STAFF" && (
               <BranchCheckboxList
                 shops={shops}
                 selectedShopIds={editShopIds}
@@ -710,80 +688,99 @@ export function UsersView({
               />
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Phone</label>
-              <Input placeholder="+94 77 123 4567" {...editForm.register("phone")} className="h-9 text-xs" />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(false)}>
+            <DialogFooter className="gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditOpen(false)}
+                className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+              >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={editForm.formState.isSubmitting}>
-                Save Changes
+              <Button
+                type="submit"
+                disabled={editForm.formState.isSubmitting}
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
+              >
+                {editForm.formState.isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <span>Save Changes</span>
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* REASSIGN / MULTI-BRANCH ASSIGN DIALOG */}
+      {/* REASSIGN SHOPS DIALOG */}
       <Dialog open={reassignOpen} onOpenChange={setReassignOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign Branches</DialogTitle>
-            <DialogDescription>
-              Assign {selectedUser?.name} to one or more operational branches
-            </DialogDescription>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Assign Branches
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground font-normal">
+              Select the branches this staff member is authorized to access and reconcile.
+            </p>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="py-2">
             <BranchCheckboxList
               shops={shops}
               selectedShopIds={reassignShopIds}
               onChange={setReassignShopIds}
             />
-
-            <p className="text-[11px] text-muted-foreground bg-muted/30 p-2.5 rounded-md border border-border/40">
-              💡 <strong>Multi-Branch Access:</strong> The officer can switch between assigned branches at any time from their sidebar dashboard switcher.
-            </p>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setReassignOpen(false)}>
+          <DialogFooter className="gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReassignOpen(false)}
+              className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+            >
               Cancel
             </Button>
             <Button
-              size="sm"
+              type="button"
               onClick={handleReassignSubmit}
-              disabled={reassignShopIds.length === 0}
+              className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
             >
-              Save Branch Assignments
+              Save Assignments
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* CONFIRM TOGGLE USER ALERT */}
-      <AlertDialog open={!!confirmToggleUser} onOpenChange={(open) => !open && setConfirmToggleUser(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmToggleUser?.isActive ? "Deactivate User Account?" : "Activate User Account?"}
+      {/* TOGGLE ACTIVE DIALOG */}
+      <AlertDialog
+        open={!!confirmToggleUser}
+        onOpenChange={(open) => !open && setConfirmToggleUser(null)}
+      >
+        <AlertDialogContent className="sm:max-w-md glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              {confirmToggleUser?.isActive ? "Deactivate User" : "Activate User"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmToggleUser?.isActive
-                ? `Deactivating ${confirmToggleUser.name} will immediately prevent them from logging in or creating records. Historical records remain preserved.`
-                : `Activating ${confirmToggleUser?.name} will restore their system login privileges.`}
+            <AlertDialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to {confirmToggleUser?.isActive ? "deactivate" : "activate"}{" "}
+              <strong className="text-foreground">{confirmToggleUser?.name}</strong>?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-3 pt-4">
+            <AlertDialogCancel className="h-12 rounded-2xl text-sm px-6 border-muted/30">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleToggleActive}
-              className={confirmToggleUser?.isActive ? "bg-destructive text-destructive-foreground hover:bg-destructive/80" : ""}
+              className={`h-12 rounded-2xl text-sm font-semibold px-6 ${
+                confirmToggleUser?.isActive
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : "bg-foreground text-background hover:opacity-90"
+              }`}
             >
-              {confirmToggleUser?.isActive ? "Deactivate Account" : "Activate Account"}
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

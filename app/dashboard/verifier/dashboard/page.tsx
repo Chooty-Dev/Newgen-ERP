@@ -41,209 +41,225 @@ export default async function VerifierDashboardPage() {
   const shopComparison = monthRes.shopComparisonData || [];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Finance Verification Control
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Audit branch ledger submissions, enforce financial compliance, and adjust approved amounts
+    <div className="space-y-8 max-w-full pb-16">
+      {/* Header Banner */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+              Finance Verification Control
+            </h1>
+            <span className="font-mono text-xs font-bold px-3 py-1 rounded-full border border-muted/30 bg-surface/50 text-foreground">
+              AUDIT QUEUE
+            </span>
+          </div>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Audit branch ledger submissions, enforce financial compliance, and authorize ledger entries.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button render={<Link href="/dashboard/verifier/records" />} size="sm" className="gap-1.5">
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/verifier/records"
+            className="h-12 rounded-2xl px-6 bg-foreground text-background hover:opacity-90 font-semibold text-sm flex items-center gap-2 transition-all shadow-md"
+          >
             <CheckCircle2Icon className="size-4" />
-            Open Review Queue
-          </Button>
+            <span>Open Review Queue</span>
+          </Link>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI Stat Cards */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Pending Approvals */}
-        <Card className="border-border bg-card shadow-sm min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate" title="Awaiting Verification">
+        <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Awaiting Verification
-            </CardTitle>
-            <div className="rounded-lg bg-warning/10 p-2 text-warning shrink-0">
-              <ClockIcon className="size-4 text-primary" />
+            </span>
+            <div className="size-10 rounded-2xl bg-surface/40 border border-muted/20 flex items-center justify-center text-foreground">
+              <ClockIcon className="size-5" />
             </div>
-          </CardHeader>
-          <CardContent className="min-w-0">
-            <div className="text-2xl font-bold text-foreground font-mono truncate" title={`${monthKpis.pendingApprovals} Records`}>
-              {monthKpis.pendingApprovals} Records
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-foreground">
+              {monthKpis.pendingApprovals}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 truncate" title={monthKpis.pendingApprovals === 0 ? "Queue completely cleared" : "Requires attention"}>
-              {monthKpis.pendingApprovals === 0 ? "Queue completely cleared" : "Requires attention"}
+            <p className="text-xs text-muted-foreground font-medium">
+              {monthKpis.pendingApprovals === 0 ? "Queue completely cleared" : "Action required on submissions"}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Approved Today */}
-        <Card className="border-border bg-card shadow-sm min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate" title="Approved Today">
+        <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Approved Today
-            </CardTitle>
-            <div className="rounded-lg bg-chart-2/10 p-2 text-chart-2 shrink-0">
-              <CheckCircle2Icon className="size-4" />
+            </span>
+            <div className="size-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+              <CheckCircle2Icon className="size-5" />
             </div>
-          </CardHeader>
-          <CardContent className="min-w-0">
-            <div className="text-2xl font-bold text-foreground font-mono truncate" title={`${approvedToday} Entries`}>
-              {approvedToday} Entries
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-foreground">
+              {approvedToday}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 truncate" title="Cleared for ledger finalization">
-              Cleared for ledger finalization
+            <p className="text-xs text-muted-foreground font-medium">
+              Cleared for branch ledger finalization
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Rejected Today */}
-        <Card className="border-border bg-card shadow-sm min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate" title="Declined Today">
+        <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Declined Today
-            </CardTitle>
-            <div className="rounded-lg bg-destructive/10 p-2 text-destructive shrink-0">
-              <XCircleIcon className="size-4" />
+            </span>
+            <div className="size-10 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive">
+              <XCircleIcon className="size-5" />
             </div>
-          </CardHeader>
-          <CardContent className="min-w-0">
-            <div className="text-2xl font-bold text-foreground font-mono truncate" title={`${rejectedToday} Entries`}>
-              {rejectedToday} Entries
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-foreground">
+              {rejectedToday}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 truncate" title="Declined with mandatory remarks">
+            <p className="text-xs text-muted-foreground font-medium">
               Declined with mandatory remarks
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Total Value Approved this month */}
-        <Card className="border-border bg-card shadow-sm min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate" title="Monthly Approved Value">
+        {/* Total Value Approved */}
+        <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Monthly Approved Value
-            </CardTitle>
-            <div className="rounded-lg bg-primary/10 p-2 text-primary shrink-0">
-              <ShieldCheckIcon className="size-4" />
+            </span>
+            <div className="size-10 rounded-2xl bg-surface/40 border border-muted/20 flex items-center justify-center text-foreground">
+              <ShieldCheckIcon className="size-5" />
             </div>
-          </CardHeader>
-          <CardContent className="min-w-0">
-            <div
-              className="text-2xl font-bold text-chart-2 font-mono truncate"
-              title={`LKR ${monthKpis.approvedAmount.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-            >
+          </div>
+          <div className="space-y-1">
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-foreground">
               LKR {monthKpis.approvedAmount.toLocaleString(undefined, { minimumFractionDigits: 0 })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 truncate" title="Authorized capital across all branches">
+            <p className="text-xs text-muted-foreground font-medium">
               Authorized capital across all branches
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Grid: Pending Items Queue & Branch Distribution */}
-      <div className="grid gap-6 lg:grid-cols-7">
+      <div className="grid gap-8 lg:grid-cols-7">
         {/* Pending Items List (4 cols) */}
-        <Card className="lg:col-span-4 border-border bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between">
+        <div className="lg:col-span-4 glass-panel rounded-3xl p-6 sm:p-8 border border-muted/30 shadow-xl space-y-6">
+          <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base font-semibold">Immediate Review Queue</CardTitle>
-              <CardDescription>Transactions requiring verifier authorization</CardDescription>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Immediate Review Queue
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Transactions requiring verifier authorization
+              </p>
             </div>
-            <Button render={<Link href="/dashboard/verifier/records" />} variant="ghost" size="sm" className="gap-1 text-xs">
-              View All <ArrowRightIcon className="size-3.5" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingRecords.map((rec: any) => (
-                <div
-                  key={rec._id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-border/70 bg-card p-3 hover:bg-muted/20 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex flex-col">
-                      <span className="font-mono text-xs font-semibold text-primary">
-                        {rec.billNumber}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {rec.shop?.name} • {new Date(rec.date).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <CategoryBadge name={rec.category?.name || "Expense"} colorToken={rec.category?.colorToken} />
-                  </div>
+            <Link
+              href="/dashboard/verifier/records"
+              className="h-9 px-4 rounded-xl border border-muted/30 bg-surface/30 hover:bg-surface/60 text-xs font-semibold text-foreground flex items-center gap-1.5 transition-colors"
+            >
+              <span>View All</span>
+              <ArrowRightIcon className="size-3.5" />
+            </Link>
+          </div>
 
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs text-muted-foreground truncate max-w-[140px]">
-                      {rec.reason}
+          <div className="space-y-3">
+            {pendingRecords.map((rec: any) => (
+              <div
+                key={rec._id}
+                className="glass-card p-4 rounded-2xl border border-muted/20 hover:border-muted/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <span className="font-mono text-xs font-bold text-foreground">
+                      {rec.billNumber}
                     </span>
-                    <span className="font-mono text-xs font-semibold text-foreground">
-                      LKR {Number(rec.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <span className="text-[11px] text-muted-foreground">
+                      {rec.shop?.name} • {new Date(rec.date).toLocaleDateString()}
                     </span>
-                    <Button
-                      render={<Link href="/dashboard/verifier/records" />}
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                    >
-                      Review
-                    </Button>
                   </div>
+                  <CategoryBadge name={rec.category?.name || "Expense"} colorToken={rec.category?.colorToken} />
                 </div>
-              ))}
-              {pendingRecords.length === 0 && (
-                <div className="py-12 text-center text-xs text-muted-foreground">
-                  No records currently waiting for review. The verification queue is clean.
+
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-muted-foreground truncate max-w-[140px] block">
+                    {rec.reason}
+                  </span>
+                  <span className="font-mono text-sm font-bold text-foreground whitespace-nowrap">
+                    LKR {Number(rec.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <Link
+                    href="/dashboard/verifier/records"
+                    className="h-9 px-4 rounded-xl bg-foreground text-background font-semibold text-xs flex items-center justify-center hover:opacity-90 transition-opacity whitespace-nowrap"
+                  >
+                    Review
+                  </Link>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            ))}
+
+            {pendingRecords.length === 0 && (
+              <div className="py-16 text-center text-sm text-muted-foreground">
+                No records currently waiting for review. The verification queue is clean.
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Branch Distribution (3 cols) */}
-        <Card className="lg:col-span-3 border-border bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Branch Inflow/Outflow</CardTitle>
-            <CardDescription>Monthly activity across monitored branches</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {shopComparison.slice(0, 6).map((item) => (
-                <div
-                  key={item.shop}
-                  className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/20 p-2.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-7 items-center justify-center rounded bg-primary/10 font-bold text-xs text-primary uppercase">
-                      {item.code}
-                    </div>
-                    <span className="text-xs font-medium text-foreground truncate max-w-[120px]">
-                      {item.shop}
-                    </span>
+        <div className="lg:col-span-3 glass-panel rounded-3xl p-6 sm:p-8 border border-muted/30 shadow-xl space-y-6">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              Branch Inflow / Outflow
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Monthly activity across monitored branches
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {shopComparison.slice(0, 6).map((item) => (
+              <div
+                key={item.shop}
+                className="glass-card p-3.5 rounded-2xl border border-muted/20 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-surface/50 border border-muted/30 font-mono font-bold text-xs text-foreground uppercase">
+                    {item.code}
                   </div>
-                  <div className="text-right text-xs">
-                    <div className="font-mono font-semibold text-chart-2">
-                      +LKR {Number(item.income).toLocaleString()}
-                    </div>
-                    <div className="font-mono text-muted-foreground text-[10px]">
-                      -LKR {Number(item.expense).toLocaleString()}
-                    </div>
+                  <span className="text-xs font-semibold text-foreground truncate max-w-[130px]">
+                    {item.shop}
+                  </span>
+                </div>
+                <div className="text-right text-xs">
+                  <div className="font-mono font-bold text-foreground">
+                    +LKR {Number(item.income).toLocaleString()}
+                  </div>
+                  <div className="font-mono text-muted-foreground text-[10px]">
+                    -LKR {Number(item.expense).toLocaleString()}
                   </div>
                 </div>
-              ))}
-              {shopComparison.length === 0 && (
-                <div className="py-8 text-center text-xs text-muted-foreground">
-                  No branch activity recorded yet this month.
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            ))}
+
+            {shopComparison.length === 0 && (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                No branch activity recorded yet this month.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

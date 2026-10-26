@@ -11,16 +11,8 @@ import {
   getInventoryAnalyticsAction,
 } from "@/actions/inventory";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Tabs,
   TabsContent,
@@ -65,7 +57,6 @@ import {
   PackageIcon,
   LayersIcon,
   AlertTriangleIcon,
-  AlertCircleIcon,
   DollarSignIcon,
   PlusCircleIcon,
   MinusCircleIcon,
@@ -75,7 +66,6 @@ import {
   DownloadIcon,
   RefreshCwIcon,
   Loader2Icon,
-  CheckCircle2Icon,
   LayoutDashboardIcon,
   HistoryIcon,
   MapPinIcon,
@@ -95,6 +85,8 @@ interface InventoryViewProps {
   shopName: string;
   shopCode: string;
   isStaff?: boolean;
+  controlledTab?: "dashboard" | "items" | "history";
+  onTabChange?: (tab: "dashboard" | "items" | "history") => void;
 }
 
 export function InventoryView({
@@ -102,8 +94,16 @@ export function InventoryView({
   shopName,
   shopCode,
   isStaff = false,
+  controlledTab,
+  onTabChange,
 }: InventoryViewProps) {
-  const [activeTab, setActiveTab] = React.useState<"dashboard" | "items" | "history">("dashboard");
+  const [internalTab, setInternalTab] = React.useState<"dashboard" | "items" | "history">("dashboard");
+  const activeTab = controlledTab !== undefined ? controlledTab : internalTab;
+
+  const handleTabSelect = (val: "dashboard" | "items" | "history") => {
+    setInternalTab(val);
+    onTabChange?.(val);
+  };
 
   // Data states
   const [items, setItems] = React.useState<any[]>([]);
@@ -219,10 +219,10 @@ export function InventoryView({
         setUsages(usagesRes.usages);
       }
     } catch (err) {
-      console.error("Failed to load inventory data:", err);
+      console.error("Inventory fetch error:", err);
       toast.create({
-        title: "Load Error",
-        description: "Failed to fetch inventory data.",
+        title: "Error",
+        description: "Failed to load branch inventory data.",
         type: "error",
       });
     } finally {
@@ -240,8 +240,8 @@ export function InventoryView({
     e.preventDefault();
     if (!createForm.name.trim() || !createForm.itemCode.trim()) {
       toast.create({
-        title: "Validation Error",
-        description: "Item Name and Item Code are required.",
+        title: "Required Fields",
+        description: "Please specify item name and item code.",
         type: "error",
       });
       return;
@@ -253,7 +253,7 @@ export function InventoryView({
       ...createForm,
       quantity: Number(createForm.quantity) || 0,
       unitPrice: Number(createForm.unitPrice) || 0,
-      minStockThreshold: Number(createForm.minStockThreshold) || 5,
+      minStockThreshold: Number(createForm.minStockThreshold) || 0,
     });
     setIsCreating(false);
 
@@ -261,7 +261,6 @@ export function InventoryView({
       toast.create({
         title: "Item Registered",
         description: res.message,
-        type: "success",
       });
       setCreateOpen(false);
       setCreateForm({
@@ -278,31 +277,30 @@ export function InventoryView({
       fetchData();
     } else {
       toast.create({
-        title: "Registration Failed",
-        description: res.error || "Failed to create item",
+        title: "Creation Failed",
+        description: res.error || "Failed to create item.",
         type: "error",
       });
     }
   };
 
-  // Handle Edit Open
+  // Handle Edit Submit
   const handleOpenEdit = (item: any) => {
     setEditingItem(item);
     setEditForm({
       name: item.name || "",
       itemCode: item.itemCode || "",
       category: item.category || "General",
-      quantity: Number(item.quantity || 0),
+      quantity: item.quantity || 0,
       unit: item.unit || "pcs",
-      unitPrice: Number(item.unitPrice || 0),
-      minStockThreshold: Number(item.minStockThreshold || 5),
+      unitPrice: item.unitPrice || 0,
+      minStockThreshold: item.minStockThreshold || 5,
       description: item.description || "",
       location: item.location || "",
     });
     setEditOpen(true);
   };
 
-  // Handle Edit Submit
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
@@ -313,7 +311,7 @@ export function InventoryView({
       ...editForm,
       quantity: Number(editForm.quantity) || 0,
       unitPrice: Number(editForm.unitPrice) || 0,
-      minStockThreshold: Number(editForm.minStockThreshold) || 5,
+      minStockThreshold: Number(editForm.minStockThreshold) || 0,
     });
     setIsUpdating(false);
 
@@ -321,7 +319,6 @@ export function InventoryView({
       toast.create({
         title: "Item Updated",
         description: res.message,
-        type: "success",
       });
       setEditOpen(false);
       setEditingItem(null);
@@ -329,7 +326,7 @@ export function InventoryView({
     } else {
       toast.create({
         title: "Update Failed",
-        description: res.error || "Failed to update item",
+        description: res.error || "Failed to update item.",
         type: "error",
       });
     }
@@ -347,20 +344,19 @@ export function InventoryView({
       toast.create({
         title: "Item Deleted",
         description: res.message,
-        type: "success",
       });
       setDeleteConfirmItem(null);
       fetchData();
     } else {
       toast.create({
         title: "Delete Failed",
-        description: res.error || "Failed to delete item",
+        description: res.error || "Failed to delete item.",
         type: "error",
       });
     }
   };
 
-  // Handle Open Record Usage
+  // Handle Record Usage
   const handleOpenRecordUsage = (preselectedItemId?: string) => {
     setUsageForm({
       itemId: preselectedItemId || (items.length > 0 ? items[0]._id : ""),
@@ -372,7 +368,6 @@ export function InventoryView({
     setUsageOpen(true);
   };
 
-  // Handle Usage Submit
   const handleUsageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usageForm.itemId) {
@@ -404,10 +399,8 @@ export function InventoryView({
       toast.create({
         title: "Usage Recorded",
         description: res.message,
-        type: "success",
       });
 
-      // Low Stock Alert Check!
       if (res.isLowStock || res.isOutOfStock) {
         setRecentLowStockAlert({
           itemName: res.itemName,
@@ -417,7 +410,7 @@ export function InventoryView({
           threshold: res.minStockThreshold,
         });
         toast.create({
-          title: "⚠️ Low Stock Alert",
+          title: "Low Stock Alert",
           description: `Warning: "${res.itemName}" is running low on stock! Remaining: ${res.remainingQuantity} ${res.unit} (Threshold: ${res.minStockThreshold}).`,
           type: "error",
         });
@@ -484,15 +477,15 @@ export function InventoryView({
   const selectedUsageItem = items.find((i) => i._id === usageForm.itemId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Low Stock Alert Notification Banner if any */}
       {recentLowStockAlert && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive flex items-start justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-3">
-            <AlertTriangleIcon className="size-5 shrink-0 mt-0.5" />
+        <div className="glass-card p-6 rounded-3xl border border-destructive/40 text-foreground flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <AlertTriangleIcon className="size-6 text-destructive shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-semibold text-sm">Low Stock Alert Triggered!</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <h4 className="font-bold text-lg text-foreground">Low Stock Alert Triggered</h4>
+              <p className="text-sm text-muted-foreground mt-1">
                 Item <strong className="text-foreground">{recentLowStockAlert.itemName} ({recentLowStockAlert.itemCode})</strong> has fallen to{" "}
                 <span className="font-mono font-bold text-destructive">{recentLowStockAlert.remaining} {recentLowStockAlert.unit}</span>.
                 The minimum reorder threshold is <span className="font-mono">{recentLowStockAlert.threshold} {recentLowStockAlert.unit}</span>.
@@ -501,9 +494,8 @@ export function InventoryView({
           </div>
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => setRecentLowStockAlert(null)}
-            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+            className="h-10 rounded-xl px-4 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
             Dismiss
           </Button>
@@ -511,488 +503,461 @@ export function InventoryView({
       )}
 
       {/* Header and Quick Actions Bar */}
-      <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="glass-card p-6 md:p-8 rounded-3xl border border-muted/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2">
-              <PackageIcon className="size-5 text-primary" />
-              <h2 className="text-lg font-bold text-foreground tracking-tight">
-                {shopName} Inventory Management
+            <div className="flex items-center gap-3">
+              <PackageIcon className="size-8 text-foreground" />
+              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+                {shopName} Inventory
               </h2>
-              <Badge variant="outline" className="font-mono text-xs">
+              <span className="font-mono text-sm px-3 py-1 rounded-full bg-surface/50 border border-muted/30 font-semibold text-foreground">
                 {shopCode}
-              </Badge>
-              <Badge variant="secondary" className="font-mono text-xs">
-                📦 INVENTORY ONLY
-              </Badge>
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Track stock levels, monitor low stock reorder alerts, and record consumables usage. (Cash ledger disabled for this branch).
+            <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
+              Track stock levels, monitor low stock reorder alerts, and record consumables usage.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
             <Button
               onClick={() => setCreateOpen(true)}
-              size="sm"
-              className="gap-2 text-xs font-semibold shadow-xs"
+              className="h-14 rounded-2xl px-6 bg-foreground text-background hover:opacity-90 font-semibold text-base gap-2"
             >
-              <PlusCircleIcon className="size-4" />
-              Add Inventory Item
+              <PlusCircleIcon className="size-5" />
+              Add Item
             </Button>
 
             <Button
               onClick={() => handleOpenRecordUsage()}
               variant="outline"
-              size="sm"
               disabled={items.length === 0}
-              className="gap-2 text-xs font-semibold"
+              className="h-14 rounded-2xl px-6 text-base font-semibold border-muted/30 bg-surface/30 hover:bg-surface/60 gap-2"
             >
-              <MinusCircleIcon className="size-4 text-primary" />
+              <MinusCircleIcon className="size-5" />
               Record Usage
             </Button>
 
             <Button
               variant="outline"
-              size="icon"
               onClick={() => {
                 setRefreshing(true);
                 fetchData();
               }}
               disabled={refreshing}
               title="Refresh Data"
-              className="h-9 w-9"
+              className="size-14 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60"
             >
-              <RefreshCwIcon className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+              <RefreshCwIcon className={`size-5 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="space-y-6">
-        <TabsList className="bg-muted">
-          <TabsTrigger value="dashboard" className="text-xs gap-1.5">
-            <LayoutDashboardIcon className="size-3.5" />
-            <span>Dashboard &amp; Stats</span>
+      <Tabs value={activeTab} onValueChange={(val: any) => handleTabSelect(val)} className="space-y-6">
+        <TabsList className="h-16 p-2 rounded-2xl bg-surface/40 border border-muted/30 flex gap-2 w-fit">
+          <TabsTrigger value="dashboard" className="h-12 px-6 rounded-xl text-sm font-semibold gap-2 data-[state=active]:bg-foreground data-[state=active]:text-background">
+            <LayoutDashboardIcon className="size-4" />
+            <span>Overview &amp; Stats</span>
           </TabsTrigger>
-          <TabsTrigger value="items" className="text-xs gap-1.5">
-            <PackageIcon className="size-3.5" />
+          <TabsTrigger value="items" className="h-12 px-6 rounded-xl text-sm font-semibold gap-2 data-[state=active]:bg-foreground data-[state=active]:text-background">
+            <PackageIcon className="size-4" />
             <span>Inventory Items ({items.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="history" className="text-xs gap-1.5">
-            <HistoryIcon className="size-3.5" />
+          <TabsTrigger value="history" className="h-12 px-6 rounded-xl text-sm font-semibold gap-2 data-[state=active]:bg-foreground data-[state=active]:text-background">
+            <HistoryIcon className="size-4" />
             <span>Usage History ({usages.length})</span>
           </TabsTrigger>
         </TabsList>
 
         {/* 1. DASHBOARD TAB CONTENT */}
-        <TabsContent value="dashboard" className="space-y-6 mt-0">
+        <TabsContent value="dashboard" className="space-y-8 mt-0">
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border border-border/80 bg-card shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold uppercase tracking-wider">
                   Total Items
-                </CardTitle>
-                <PackageIcon className="size-4 text-primary" />
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="text-2xl font-bold font-mono text-foreground">
+                </span>
+                <PackageIcon className="size-6 text-foreground" />
+              </div>
+              <div className="mt-4">
+                <div className="text-4xl font-extrabold font-mono text-foreground">
                   {analytics.totalItems}
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-2">
                   Across {analytics.categoryBreakdown.length} categories
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border border-border/80 bg-card shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold uppercase tracking-wider">
                   Stock Units
-                </CardTitle>
-                <LayersIcon className="size-4 text-primary" />
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="text-2xl font-bold font-mono text-foreground">
+                </span>
+                <LayersIcon className="size-6 text-foreground" />
+              </div>
+              <div className="mt-4">
+                <div className="text-4xl font-extrabold font-mono text-foreground">
                   {analytics.totalStockCount.toLocaleString()}
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Cumulative quantity in branch
+                <p className="text-xs text-muted-foreground mt-2">
+                  Cumulative branch inventory
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border border-border/80 bg-card shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold uppercase tracking-wider">
                   Low Stock Items
-                </CardTitle>
-                <AlertTriangleIcon className="size-4 text-amber-500" />
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="flex items-baseline gap-2">
-                  <span className={`text-2xl font-bold font-mono ${analytics.lowStockCount + analytics.outOfStockCount > 0 ? "text-destructive" : "text-foreground"}`}>
-                    {analytics.lowStockCount + analytics.outOfStockCount}
-                  </span>
-                  {analytics.outOfStockCount > 0 && (
-                    <span className="text-xs text-destructive font-semibold">
-                      ({analytics.outOfStockCount} out of stock)
-                    </span>
-                  )}
+                </span>
+                <AlertTriangleIcon className="size-6 text-destructive" />
+              </div>
+              <div className="mt-4">
+                <div className="text-4xl font-extrabold font-mono text-destructive">
+                  {analytics.lowStockCount + analytics.outOfStockCount}
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-2">
                   Below reorder safety threshold
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border border-border/80 bg-card shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
-                  Total Inventory Value
-                </CardTitle>
-                <DollarSignIcon className="size-4 text-primary" />
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="text-2xl font-bold font-mono text-foreground">
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold uppercase tracking-wider">
+                  Inventory Value
+                </span>
+                <DollarSignIcon className="size-6 text-foreground" />
+              </div>
+              <div className="mt-4">
+                <div className="text-3xl font-extrabold font-mono text-foreground">
                   LKR {analytics.totalInventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-2">
                   At base unit cost price
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* LOW STOCK ITEMS ALERT LIST */}
           {analytics.lowStockItems.length > 0 && (
-            <Card className="border border-destructive/30 bg-destructive/5 shadow-sm">
-              <CardHeader className="pb-3 pt-4 px-4 border-b border-destructive/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangleIcon className="size-4 text-destructive" />
-                    <CardTitle className="text-sm font-semibold text-destructive">
-                      Reorder Required: Low Stock Items ({analytics.lowStockItems.length})
-                    </CardTitle>
-                  </div>
-                  <Badge variant="destructive" className="text-xs">
-                    Needs Attention
-                  </Badge>
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-destructive/30 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <AlertTriangleIcon className="size-6 text-destructive" />
+                  <h4 className="text-lg font-bold text-foreground">
+                    Reorder Required: Low Stock Items ({analytics.lowStockItems.length})
+                  </h4>
                 </div>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {analytics.lowStockItems.map((item) => (
-                    <div
-                      key={item._id}
-                      className="rounded-lg border border-border bg-card p-3 flex flex-col justify-between gap-2 shadow-xs"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="font-mono text-xs font-bold text-foreground">
-                            {item.itemCode}
+                <span className="text-xs px-3 py-1 rounded-full uppercase font-bold tracking-wider border border-destructive/40 text-destructive bg-surface/50">
+                  Needs Attention
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {analytics.lowStockItems.map((item) => (
+                  <div
+                    key={item._id}
+                    className="glass-card p-5 rounded-2xl border border-muted/30 flex flex-col justify-between gap-3"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-foreground">
+                          {item.itemCode}
+                        </span>
+                        <h5 className="font-semibold text-base text-foreground truncate max-w-[200px]">
+                          {item.name}
+                        </h5>
+                        <span className="text-xs text-muted-foreground">{item.category}</span>
+                      </div>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold uppercase border border-destructive/40 text-destructive">
+                        {item.isOutOfStock ? "OUT OF STOCK" : "LOW STOCK"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-muted/20 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Remaining: </span>
+                        <span className="font-mono font-bold text-destructive">
+                          {item.quantity} {item.unit}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Min: {item.minStockThreshold} {item.unit}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CHARTS & RECENT USAGE SECTION */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Category Breakdown Chart */}
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 space-y-6">
+              <div>
+                <h4 className="text-lg font-bold text-foreground">Stock Units by Category</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Distribution of inventory volume across registered categories
+                </p>
+              </div>
+
+              {analytics.categoryBreakdown.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
+                  No category data available
+                </div>
+              ) : (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.categoryBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+                      <XAxis dataKey="category" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} interval={0} angle={-25} textAnchor="end" />
+                      <YAxis tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} />
+                      <RechartsTooltip
+                        formatter={(value: any) => [`${Number(value).toLocaleString()} units`, "Stock Quantity"]}
+                        contentStyle={{ backgroundColor: "var(--surface)", borderColor: "var(--border)", fontSize: "14px", borderRadius: "16px" }}
+                      />
+                      <Bar dataKey="itemCount" fill="var(--foreground)" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* Recent Consumption Activity */}
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-bold text-foreground">Recent Consumables Usage</h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Latest recorded inventory deductions and usage purposes
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleTabSelect("history")}
+                  className="text-sm font-semibold text-foreground hover:bg-surface/50"
+                >
+                  View All
+                </Button>
+              </div>
+
+              {analytics.recentUsages.length === 0 ? (
+                <div className="p-12 text-center text-sm text-muted-foreground">
+                  No recorded usages yet. Click &quot;Record Usage&quot; to log consumption.
+                </div>
+              ) : (
+                <div className="divide-y divide-muted/20">
+                  {analytics.recentUsages.slice(0, 5).map((u) => (
+                    <div key={u._id} className="py-4 flex items-center justify-between text-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-foreground">
+                            {u.item?.itemCode}
                           </span>
-                          <h5 className="font-medium text-xs text-foreground truncate max-w-[180px]">
-                            {item.name}
-                          </h5>
-                          <span className="text-[11px] text-muted-foreground">{item.category}</span>
+                          <span className="font-semibold text-foreground">{u.item?.name}</span>
                         </div>
-                        <Badge variant={item.isOutOfStock ? "destructive" : "outline"} className="text-[10px]">
-                          {item.isOutOfStock ? "OUT OF STOCK" : "LOW STOCK"}
-                        </Badge>
+                        <p className="text-xs text-muted-foreground">
+                          Purpose: <strong className="text-foreground">{u.purpose}</strong>
+                          {u.recordedBy?.name && ` • By ${u.recordedBy.name}`}
+                        </p>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Remaining: </span>
-                          <span className="font-mono font-bold text-destructive">
-                            {item.quantity} {item.unit}
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-muted-foreground">
-                          Min: {item.minStockThreshold} {item.unit}
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-destructive">
+                          -{u.quantityUsed} {u.item?.unit}
+                        </span>
+                        <span className="block text-xs text-muted-foreground mt-0.5">
+                          {new Date(u.date).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* CHARTS & RECENT USAGE SECTION */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Category Breakdown Chart */}
-            <Card className="border border-border/80 bg-card shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4 border-b border-border/40">
-                <CardTitle className="text-sm font-semibold">Stock Units by Category</CardTitle>
-                <CardDescription className="text-xs">
-                  Distribution of inventory volume across registered categories
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4">
-                {analytics.categoryBreakdown.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-xs text-muted-foreground">
-                    No category data available
-                  </div>
-                ) : (
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analytics.categoryBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
-                        <XAxis dataKey="category" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <RechartsTooltip
-                          formatter={(value: any) => [`${Number(value).toLocaleString()} units`, "Stock Quantity"]}
-                          contentStyle={{ backgroundColor: "var(--card)", borderColor: "var(--border)", fontSize: "12px", borderRadius: "8px" }}
-                        />
-                        <Bar dataKey="itemCount" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Consumption Activity */}
-            <Card className="border border-border/80 bg-card shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-4 border-b border-border/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm font-semibold">Recent Consumables Usage</CardTitle>
-                    <CardDescription className="text-xs">
-                      Latest recorded inventory deductions and usage purposes
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setActiveTab("history")}
-                    className="text-xs text-primary hover:underline h-7"
-                  >
-                    View All
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {analytics.recentUsages.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-muted-foreground">
-                    No recorded usages yet. Click &quot;Record Usage&quot; to log consumption.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {analytics.recentUsages.slice(0, 5).map((u) => (
-                      <div key={u._id} className="p-3.5 flex items-center justify-between text-xs">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-semibold text-foreground">
-                              {u.item?.itemCode}
-                            </span>
-                            <span className="font-medium text-foreground">{u.item?.name}</span>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">
-                            Purpose: <strong className="text-foreground">{u.purpose}</strong>
-                            {u.recordedBy?.name && ` • By ${u.recordedBy.name}`}
-                          </p>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="font-mono font-bold text-destructive">
-                            -{u.quantityUsed} {u.item?.unit}
-                          </span>
-                          <span className="block text-[10px] text-muted-foreground">
-                            {new Date(u.date).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </div>
           </div>
         </TabsContent>
 
         {/* 2. INVENTORY ITEMS TAB CONTENT */}
-        <TabsContent value="items" className="space-y-4 mt-0">
+        <TabsContent value="items" className="space-y-6 mt-0">
           {/* Filters Bar */}
-          <Card className="border border-border/80 bg-card shadow-sm">
-            <CardContent className="p-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="relative">
-                  <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search name, code, description..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-8 text-xs pl-8 font-medium"
-                  />
-                </div>
-
-                <Select value={categoryFilter} onValueChange={(val) => setCategoryFilter(val || "ALL")}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Categories</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val || "ALL")}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="All Stock Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Statuses</SelectItem>
-                    <SelectItem value="IN_STOCK">In Stock Only</SelectItem>
-                    <SelectItem value="LOW_STOCK">Low Stock Alert Only</SelectItem>
-                    <SelectItem value="OUT_OF_STOCK">Out of Stock Only</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <div className="flex items-center justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportCSV}
-                    className="h-8 text-xs font-semibold gap-1.5"
-                  >
-                    <DownloadIcon className="size-3.5" />
-                    <span>Export CSV</span>
-                  </Button>
-                </div>
+          <div className="glass-card p-4 sm:p-6 rounded-3xl border border-muted/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="relative">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search name, code..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-14 rounded-2xl bg-surface/40 border-muted/30 pl-11 text-base font-medium"
+                />
               </div>
-            </CardContent>
-          </Card>
+
+              <Select value={categoryFilter} onValueChange={(val) => setCategoryFilter(val || "ALL")}>
+                <SelectTrigger className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base font-medium">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent className="glass-panel rounded-2xl border-muted/30">
+                  <SelectItem value="ALL">All Categories</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val || "ALL")}>
+                <SelectTrigger className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base font-medium">
+                  <SelectValue placeholder="All Stock Statuses" />
+                </SelectTrigger>
+                <SelectContent className="glass-panel rounded-2xl border-muted/30">
+                  <SelectItem value="ALL">All Statuses</SelectItem>
+                  <SelectItem value="IN_STOCK">In Stock Only</SelectItem>
+                  <SelectItem value="LOW_STOCK">Low Stock Alert</SelectItem>
+                  <SelectItem value="OUT_OF_STOCK">Out of Stock</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center justify-end">
+                <Button
+                  variant="outline"
+                  onClick={handleExportCSV}
+                  className="h-14 rounded-2xl px-6 text-base font-semibold border-muted/30 bg-surface/30 hover:bg-surface/60 gap-2 w-full sm:w-auto"
+                >
+                  <DownloadIcon className="size-5" />
+                  <span>Export CSV</span>
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {/* Items Table */}
-          <Card className="border border-border/80 bg-card shadow-sm overflow-hidden">
+          <div className="glass-card rounded-3xl border border-muted/30 overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="text-xs font-semibold">Code / SKU</TableHead>
-                    <TableHead className="text-xs font-semibold">Item Name</TableHead>
-                    <TableHead className="text-xs font-semibold">Category</TableHead>
-                    <TableHead className="text-xs font-semibold">Current Stock</TableHead>
-                    <TableHead className="text-xs font-semibold">Status</TableHead>
-                    <TableHead className="text-xs font-semibold">Unit Price</TableHead>
-                    <TableHead className="text-xs font-semibold">Total Value</TableHead>
-                    <TableHead className="text-xs font-semibold">Min Threshold</TableHead>
-                    <TableHead className="text-xs font-semibold">Location</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
+                <TableHeader className="bg-surface/30 border-b border-muted/20">
+                  <TableRow className="border-muted/20 hover:bg-transparent">
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Code</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Item Name</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Stock</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Unit Cost</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Value</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Min Limit</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-32 text-center text-xs text-muted-foreground">
-                        <Loader2Icon className="size-4 animate-spin inline mr-2" />
+                      <TableCell colSpan={10} className="h-48 text-center text-sm text-muted-foreground">
+                        <Loader2Icon className="size-6 animate-spin inline mr-2" />
                         Loading inventory records...
                       </TableCell>
                     </TableRow>
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-32 text-center text-xs text-muted-foreground">
-                        No inventory items found. Click &quot;Add Inventory Item&quot; to register your first item.
+                      <TableCell colSpan={10} className="h-48 text-center text-base font-medium text-muted-foreground">
+                        No inventory items found. Click &quot;Add Item&quot; to register your first item.
                       </TableCell>
                     </TableRow>
                   ) : (
                     items.map((item) => (
-                      <TableRow key={item._id} className="hover:bg-muted/40">
-                        <TableCell className="font-mono text-xs font-bold text-foreground">
+                      <TableRow key={item._id} className="hover:bg-surface/40 border-muted/20 transition-colors">
+                        <TableCell className="py-5 px-6 font-mono text-sm font-bold text-foreground">
                           {item.itemCode}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-5 px-6">
                           <div className="flex flex-col">
-                            <span className="font-medium text-xs text-foreground">{item.name}</span>
+                            <span className="font-semibold text-base text-foreground">{item.name}</span>
                             {item.description && (
-                              <span className="text-[11px] text-muted-foreground truncate max-w-xs">
+                              <span className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">
                                 {item.description}
                               </span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[10px] font-normal">
+                        <TableCell className="py-5 px-6">
+                          <span className="text-sm px-3 py-1 rounded-full bg-surface/50 border border-muted/30 font-medium text-foreground">
                             {item.category || "General"}
-                          </Badge>
+                          </span>
                         </TableCell>
-                        <TableCell className="font-mono text-xs font-bold">
-                          <span className={item.isOutOfStock ? "text-destructive" : item.isLowStock ? "text-amber-500" : "text-foreground"}>
+                        <TableCell className="py-5 px-6 font-mono text-base font-bold">
+                          <span className={item.isOutOfStock ? "text-destructive" : item.isLowStock ? "text-destructive" : "text-foreground"}>
                             {item.quantity} {item.unit}
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-5 px-6">
                           {item.isOutOfStock ? (
-                            <Badge variant="destructive" className="text-[10px]">
+                            <span className="text-xs px-2.5 py-1 rounded-full font-bold uppercase border border-destructive/40 text-destructive">
                               Out of Stock
-                            </Badge>
+                            </span>
                           ) : item.isLowStock ? (
-                            <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                            <span className="text-xs px-2.5 py-1 rounded-full font-bold uppercase border border-destructive/40 text-destructive">
                               Low Stock
-                            </Badge>
+                            </span>
                           ) : (
-                            <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                            <span className="text-xs px-2.5 py-1 rounded-full font-bold uppercase border border-muted/30 text-foreground">
                               In Stock
-                            </Badge>
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-xs">
+                        <TableCell className="py-5 px-6 font-mono text-sm text-foreground">
                           LKR {Number(item.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </TableCell>
-                        <TableCell className="font-mono text-xs font-semibold">
+                        <TableCell className="py-5 px-6 font-mono text-sm font-bold text-foreground">
                           LKR {Number(item.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
+                        <TableCell className="py-5 px-6 font-mono text-sm text-muted-foreground">
                           {item.minStockThreshold} {item.unit}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="py-5 px-6 text-sm text-muted-foreground">
                           {item.location ? (
-                            <span className="inline-flex items-center gap-1">
-                              <MapPinIcon className="size-3" />
+                            <span className="inline-flex items-center gap-1.5">
+                              <MapPinIcon className="size-3.5" />
                               {item.location}
                             </span>
                           ) : (
                             "—"
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <TableCell className="py-5 px-6 text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <Button
-                              variant="ghost"
-                              size="sm"
+                              variant="outline"
                               onClick={() => handleOpenRecordUsage(item._id)}
                               title="Record Usage"
-                              className="h-7 px-2 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10 gap-1"
+                              className="h-10 px-3 rounded-xl text-xs font-semibold border-muted/30 hover:bg-surface/60 gap-1.5"
                             >
-                              <MinusCircleIcon className="size-3.5" />
+                              <MinusCircleIcon className="size-4" />
                               <span>Use</span>
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
                               onClick={() => handleOpenEdit(item)}
                               title="Edit Item"
-                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              className="size-10 rounded-xl text-muted-foreground hover:text-foreground"
                             >
-                              <EditIcon className="size-3.5" />
+                              <EditIcon className="size-4" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
                               onClick={() => setDeleteConfirmItem(item)}
                               title="Delete Item"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              className="size-10 rounded-xl text-destructive hover:bg-destructive/10"
                             >
-                              <Trash2Icon className="size-3.5" />
+                              <Trash2Icon className="size-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -1002,77 +967,74 @@ export function InventoryView({
                 </TableBody>
               </Table>
             </div>
-          </Card>
+          </div>
         </TabsContent>
 
         {/* 3. USAGE HISTORY TAB CONTENT */}
-        <TabsContent value="history" className="space-y-4 mt-0">
-          <Card className="border border-border/80 bg-card shadow-sm overflow-hidden">
-            <CardHeader className="pb-3 pt-4 px-4 border-b border-border/40">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold">Usage &amp; Consumption Log</CardTitle>
-                  <CardDescription className="text-xs">
-                    Audit trail of all materials, components, and items issued or consumed
-                  </CardDescription>
-                </div>
-                <Button
-                  onClick={() => handleOpenRecordUsage()}
-                  size="sm"
-                  className="gap-1.5 text-xs font-semibold"
-                >
-                  <MinusCircleIcon className="size-3.5" />
-                  Record Usage
-                </Button>
+        <TabsContent value="history" className="space-y-6 mt-0">
+          <div className="glass-card rounded-3xl border border-muted/30 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-xl font-bold text-foreground">Usage &amp; Consumption Log</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Audit trail of all materials, components, and items issued or consumed
+                </p>
               </div>
-            </CardHeader>
+              <Button
+                onClick={() => handleOpenRecordUsage()}
+                className="h-12 rounded-2xl px-6 bg-foreground text-background hover:opacity-90 font-semibold text-sm gap-2"
+              >
+                <MinusCircleIcon className="size-4" />
+                Record Usage
+              </Button>
+            </div>
 
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="text-xs font-semibold">Date</TableHead>
-                    <TableHead className="text-xs font-semibold">Item Code</TableHead>
-                    <TableHead className="text-xs font-semibold">Item Name</TableHead>
-                    <TableHead className="text-xs font-semibold">Qty Deducted</TableHead>
-                    <TableHead className="text-xs font-semibold">Remaining Stock</TableHead>
-                    <TableHead className="text-xs font-semibold">Purpose / Department</TableHead>
-                    <TableHead className="text-xs font-semibold">Issued By</TableHead>
-                    <TableHead className="text-xs font-semibold">Notes</TableHead>
+                <TableHeader className="bg-surface/30 border-b border-muted/20">
+                  <TableRow className="border-muted/20 hover:bg-transparent">
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Item Code</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Item Name</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Qty Deducted</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Remaining</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Purpose / Department</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Issued By</TableHead>
+                    <TableHead className="h-14 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {usages.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
+                      <TableCell colSpan={8} className="h-48 text-center text-base font-medium text-muted-foreground">
                         No usage entries recorded yet.
                       </TableCell>
                     </TableRow>
                   ) : (
                     usages.map((u) => (
-                      <TableRow key={u._id} className="hover:bg-muted/40 text-xs">
-                        <TableCell className="font-mono text-muted-foreground">
+                      <TableRow key={u._id} className="hover:bg-surface/40 border-muted/20 transition-colors">
+                        <TableCell className="py-5 px-6 font-mono text-sm text-muted-foreground">
                           {new Date(u.date).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="font-mono font-bold text-foreground">
+                        <TableCell className="py-5 px-6 font-mono text-sm font-bold text-foreground">
                           {u.item?.itemCode}
                         </TableCell>
-                        <TableCell className="font-medium text-foreground">
+                        <TableCell className="py-5 px-6 font-semibold text-base text-foreground">
                           {u.item?.name}
                         </TableCell>
-                        <TableCell className="font-mono font-bold text-destructive">
+                        <TableCell className="py-5 px-6 font-mono text-base font-bold text-destructive">
                           -{u.quantityUsed} {u.item?.unit}
                         </TableCell>
-                        <TableCell className="font-mono text-foreground">
+                        <TableCell className="py-5 px-6 font-mono text-sm text-foreground">
                           {u.remainingQuantity} {u.item?.unit}
                         </TableCell>
-                        <TableCell className="font-medium text-foreground">
+                        <TableCell className="py-5 px-6 font-medium text-sm text-foreground">
                           {u.purpose}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="py-5 px-6 text-sm text-muted-foreground">
                           {u.recordedBy?.name || "System"}
                         </TableCell>
-                        <TableCell className="text-muted-foreground max-w-xs truncate">
+                        <TableCell className="py-5 px-6 text-sm text-muted-foreground max-w-xs truncate">
                           {u.note || "—"}
                         </TableCell>
                       </TableRow>
@@ -1081,134 +1043,134 @@ export function InventoryView({
                 </TableBody>
               </Table>
             </div>
-          </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
       {/* CREATE ITEM MODAL */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PackageIcon className="size-4 text-primary" />
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+              <PackageIcon className="size-6 text-foreground" />
               <span>Register New Inventory Item</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-sm text-muted-foreground font-normal">
               Add a new component, consumable, or item to branch stock.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Item Name *</label>
+          <form onSubmit={handleCreateSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Item Name *</label>
                 <Input
                   placeholder="e.g. Arduino Uno R3, Copper Wire"
                   value={createForm.name}
                   onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                   required
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Item Code / SKU *</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Item Code / SKU *</label>
                 <Input
                   placeholder="e.g. ARD-001, WIRE-CU"
                   value={createForm.itemCode}
                   onChange={(e) => setCreateForm({ ...createForm, itemCode: e.target.value })}
-                  className="h-9 text-xs font-mono uppercase"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono uppercase"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Category</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Category</label>
                 <Input
                   placeholder="e.g. Electronics, Stationary, Tools"
                   value={createForm.category}
                   onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Unit of Measure</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Unit of Measure</label>
                 <Input
                   placeholder="e.g. pcs, box, kg, pack"
                   value={createForm.unit}
                   onChange={(e) => setCreateForm({ ...createForm, unit: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Initial Stock</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Initial Stock</label>
                 <Input
                   type="number"
                   min="0"
                   value={createForm.quantity}
                   onChange={(e) => setCreateForm({ ...createForm, quantity: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Unit Cost (LKR)</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Unit Cost (LKR)</label>
                 <Input
                   type="number"
                   min="0"
                   step="any"
                   value={createForm.unitPrice}
                   onChange={(e) => setCreateForm({ ...createForm, unitPrice: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Min Alert Level</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Min Alert Level</label>
                 <Input
                   type="number"
                   min="0"
                   value={createForm.minStockThreshold}
                   onChange={(e) => setCreateForm({ ...createForm, minStockThreshold: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                   title="Alert is triggered when stock drops below this number"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">Shelf / Rack Location</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Shelf / Location</label>
               <Input
                 placeholder="e.g. Shelf A-3, Cabinet 2, Bin 12"
                 value={createForm.location}
                 onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
-                className="h-9 text-xs"
+                className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">Description / Specifications</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Description / Specifications</label>
               <Textarea
                 placeholder="Product details, voltage, tolerance, supplier..."
                 value={createForm.description}
                 onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                className="text-xs"
-                rows={2}
+                className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
+                rows={3}
               />
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} className="h-12 rounded-2xl text-sm px-6 border-muted/30">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={isCreating} className="font-semibold">
-                {isCreating ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
+              <Button type="submit" disabled={isCreating} className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8">
+                {isCreating ? <Loader2Icon className="size-4 animate-spin mr-2" /> : null}
                 Save Item
               </Button>
             </DialogFooter>
@@ -1218,121 +1180,121 @@ export function InventoryView({
 
       {/* EDIT ITEM MODAL */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <EditIcon className="size-4 text-primary" />
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+              <EditIcon className="size-6 text-foreground" />
               <span>Edit Inventory Item</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-sm text-muted-foreground font-normal">
               Update item specifications, stock quantity, or low stock threshold.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Item Name *</label>
+          <form onSubmit={handleEditSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Item Name *</label>
                 <Input
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                   required
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Item Code / SKU *</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Item Code / SKU *</label>
                 <Input
                   value={editForm.itemCode}
                   onChange={(e) => setEditForm({ ...editForm, itemCode: e.target.value })}
-                  className="h-9 text-xs font-mono uppercase"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono uppercase"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Category</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Category</label>
                 <Input
                   value={editForm.category}
                   onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Unit of Measure</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Unit of Measure</label>
                 <Input
                   value={editForm.unit}
                   onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Current Stock</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Current Stock</label>
                 <Input
                   type="number"
                   min="0"
                   value={editForm.quantity}
                   onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Unit Cost (LKR)</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Unit Cost (LKR)</label>
                 <Input
                   type="number"
                   min="0"
                   step="any"
                   value={editForm.unitPrice}
                   onChange={(e) => setEditForm({ ...editForm, unitPrice: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Min Alert Level</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Min Alert Level</label>
                 <Input
                   type="number"
                   min="0"
                   value={editForm.minStockThreshold}
                   onChange={(e) => setEditForm({ ...editForm, minStockThreshold: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">Shelf / Rack Location</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Shelf / Location</label>
               <Input
                 value={editForm.location}
                 onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                className="h-9 text-xs"
+                className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">Description</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Description</label>
               <Textarea
                 value={editForm.description}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                className="text-xs"
-                rows={2}
+                className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
+                rows={3}
               />
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(false)}>
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="h-12 rounded-2xl text-sm px-6 border-muted/30">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={isUpdating} className="font-semibold">
-                {isUpdating ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
+              <Button type="submit" disabled={isUpdating} className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8">
+                {isUpdating ? <Loader2Icon className="size-4 animate-spin mr-2" /> : null}
                 Update Item
               </Button>
             </DialogFooter>
@@ -1342,31 +1304,31 @@ export function InventoryView({
 
       {/* RECORD USAGE MODAL */}
       <Dialog open={usageOpen} onOpenChange={setUsageOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MinusCircleIcon className="size-5 text-primary" />
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+              <MinusCircleIcon className="size-6 text-foreground" />
               <span>Record Inventory Usage</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-sm text-muted-foreground font-normal">
               Deduct consumed parts, materials, or supplies from available branch inventory.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleUsageSubmit} className="space-y-4 py-2">
+          <form onSubmit={handleUsageSubmit} className="space-y-5">
             {/* Item selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">Select Item *</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Select Item *</label>
               <Select
                 value={usageForm.itemId}
                 onValueChange={(val) => setUsageForm({ ...usageForm, itemId: val || "" })}
               >
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-medium">
                   <SelectValue placeholder="Choose an item..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-60">
+                <SelectContent className="glass-panel rounded-2xl border-muted/30 max-h-60">
                   {items.map((i) => (
-                    <SelectItem key={i._id} value={i._id} className="text-xs">
+                    <SelectItem key={i._id} value={i._id} className="text-sm">
                       {i.itemCode} - {i.name} (Stock: {i.quantity} {i.unit})
                     </SelectItem>
                   ))}
@@ -1376,7 +1338,7 @@ export function InventoryView({
 
             {/* Selected item stock status card */}
             {selectedUsageItem && (
-              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1 text-xs">
+              <div className="p-4 rounded-2xl bg-surface/30 border border-muted/20 space-y-1.5 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Available Stock:</span>
                   <span className="font-mono font-bold text-foreground">
@@ -1390,76 +1352,75 @@ export function InventoryView({
                   </span>
                 </div>
                 {selectedUsageItem.quantity <= selectedUsageItem.minStockThreshold && (
-                  <div className="text-[11px] text-destructive font-medium pt-1 border-t border-border flex items-center gap-1">
-                    <AlertTriangleIcon className="size-3.5" />
+                  <div className="text-xs text-destructive font-medium pt-2 border-t border-muted/20 flex items-center gap-2">
+                    <AlertTriangleIcon className="size-3.5 shrink-0" />
                     <span>This item is currently at or below minimum threshold!</span>
                   </div>
                 )}
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Quantity Used *</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Quantity Used *</label>
                 <Input
                   type="number"
                   min="1"
                   max={selectedUsageItem ? selectedUsageItem.quantity : undefined}
                   value={usageForm.quantityUsed}
                   onChange={(e) => setUsageForm({ ...usageForm, quantityUsed: Number(e.target.value) })}
-                  className="h-9 text-xs font-mono font-bold"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 font-mono font-bold text-sm"
                   required
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase">Date *</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Date *</label>
                 <Input
                   type="date"
                   value={usageForm.date}
                   onChange={(e) => setUsageForm({ ...usageForm, date: e.target.value })}
-                  className="h-9 text-xs"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">
-                Purpose / Department / Recipient *
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Purpose / Recipient *
               </label>
               <Input
                 placeholder="e.g. Lab Project #4, Student Demo, Maintenance"
                 value={usageForm.purpose}
                 onChange={(e) => setUsageForm({ ...usageForm, purpose: e.target.value })}
-                className="h-9 text-xs"
+                className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 required
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground uppercase">Additional Note</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Additional Note</label>
               <Textarea
                 placeholder="Optional notes or authorization details..."
                 value={usageForm.note}
                 onChange={(e) => setUsageForm({ ...usageForm, note: e.target.value })}
-                className="text-xs"
-                rows={2}
+                className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
+                rows={3}
               />
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setUsageOpen(false)}>
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => setUsageOpen(false)} className="h-12 rounded-2xl text-sm px-6 border-muted/30">
                 Cancel
               </Button>
               <Button
                 type="submit"
-                size="sm"
                 disabled={isRecordingUsage || !selectedUsageItem || selectedUsageItem.quantity <= 0}
-                className="font-semibold"
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
               >
-                {isRecordingUsage ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
-                Confirm Usage &amp; Deduct Stock
+                {isRecordingUsage ? <Loader2Icon className="size-4 animate-spin mr-2" /> : null}
+                Confirm Usage
               </Button>
             </DialogFooter>
           </form>
@@ -1471,28 +1432,30 @@ export function InventoryView({
         open={!!deleteConfirmItem}
         onOpenChange={(open) => !open && setDeleteConfirmItem(null)}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2Icon className="size-5" />
+        <AlertDialogContent className="sm:max-w-md glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="flex items-center gap-2.5 text-destructive text-2xl font-bold tracking-tight">
+              <Trash2Icon className="size-6" />
               <span>Delete Inventory Item?</span>
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
+            <AlertDialogDescription className="text-sm text-muted-foreground leading-relaxed">
               Are you sure you want to remove{" "}
-              <span className="font-semibold text-foreground">
+              <strong className="text-foreground">
                 {deleteConfirmItem?.name} ({deleteConfirmItem?.itemCode})
-              </span>{" "}
-              from branch inventory? This item will no longer appear in the active inventory catalog. Past usage records will remain intact for audit.
+              </strong>{" "}
+              from branch inventory? Past usage logs remain intact for auditing.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-3 pt-4">
+            <AlertDialogCancel disabled={isDeleting} className="h-12 rounded-2xl text-sm px-6 border-muted/30">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteSubmit}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-semibold"
+              className="h-12 rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90 text-sm font-semibold px-6"
             >
-              {isDeleting ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
+              {isDeleting ? <Loader2Icon className="size-4 animate-spin mr-2" /> : null}
               Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>

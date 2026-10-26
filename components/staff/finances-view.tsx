@@ -1300,11 +1300,11 @@ export function FinancesView({
         const rawDate = row.original.createdAt || row.original.date;
         const d = new Date(rawDate);
         return (
-          <div className="flex flex-col">
-            <span className="font-mono text-xs whitespace-nowrap">
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="font-mono text-xs font-semibold text-foreground">
               {d.toLocaleDateString()}
             </span>
-            <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+            <span className="font-mono text-[10px] text-muted-foreground">
               {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })}
             </span>
           </div>
@@ -1313,9 +1313,9 @@ export function FinancesView({
     },
     {
       accessorKey: "billNumber",
-      header: "Bill No",
+      header: () => <span className="whitespace-nowrap">Bill No</span>,
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold text-primary">
+        <span className="font-mono text-xs font-bold text-foreground whitespace-nowrap block">
           {row.original.billNumber}
         </span>
       ),
@@ -1325,47 +1325,31 @@ export function FinancesView({
       header: "Category",
       cell: ({ row }) => {
         const rec = row.original;
-        const catName = rec.category?.name || (rec.isCommunicationItem ? "Communication Sale" : "Uncategorized");
+        const catName = rec.category?.name || (rec.isCommunicationItem ? "Communication Sale" : rec.isUtilityBill ? "Utility Bill" : "General");
         const colorToken = rec.category?.colorToken || (rec.isCommunicationItem ? "chart-1" : undefined);
         return (
-          <div className="max-w-[160px] min-w-0 flex flex-col gap-0.5">
+          <div className="max-w-[150px] min-w-0">
             <CategoryBadge name={catName} colorToken={colorToken} />
-            {rec.isCommunicationItem && (
-              <span className="text-[10px] text-muted-foreground font-mono leading-none">📱 Comm Item</span>
-            )}
           </div>
         );
       },
     },
     {
-      accessorKey: "paymentMethod",
-      header: "Method / Account",
+      accessorKey: "reason",
+      header: "Description / Reason",
       cell: ({ row }) => {
-        const method = row.original.paymentMethod;
-        const bank = row.original.bankAccount;
+        const r = row.original;
+        const itemText = r.itemName ? `${r.itemName}${r.quantity && r.quantity > 1 ? ` (×${r.quantity})` : ""}` : null;
+        const displayText = itemText || r.reason || "—";
+        const isCross = Boolean(r.isCrossBranchPayment || (r.isRelatedToBranch && r.relatedBranch));
         return (
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1">
-              {method === "PETTY_CASH" && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                  <WalletIcon className="size-2.5 mr-1" />
-                  PETTY CASH
-                </Badge>
-              )}
-              {method === "CASH" && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
-                  CASH
-                </Badge>
-              )}
-              {method !== "PETTY_CASH" && method !== "CASH" && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
-                  {method}
-                </Badge>
-              )}
-            </div>
-            {bank && (
-              <span className="text-[10px] text-muted-foreground mt-0.5 font-mono truncate max-w-[130px]">
-                {bank.bankName} (...{String(bank.accountNumber).slice(-4)})
+          <div className="flex flex-col max-w-[240px]">
+            <span className="text-xs text-muted-foreground truncate block font-medium" title={r.reason || itemText || ""}>
+              {displayText}
+            </span>
+            {isCross && (
+              <span className="text-[10px] text-muted-foreground truncate block font-mono">
+                → {r.beneficiaryShop?.name || r.relatedBranch?.name || "Target Branch"}
               </span>
             )}
           </div>
@@ -1373,82 +1357,32 @@ export function FinancesView({
       },
     },
     {
-      accessorKey: "reason",
-      header: "Reason / Item",
+      accessorKey: "paymentMethod",
+      header: "Method",
       cell: ({ row }) => {
-        const r = row.original;
-        const hasCommItem = Boolean(r.itemCode || r.itemName);
+        const method = row.original.paymentMethod;
+        const bank = row.original.bankAccount;
         return (
-          <div className="max-w-[200px] space-y-0.5">
-            {hasCommItem && (
-              <div className="flex items-center gap-1">
-                <Badge variant="secondary" className="text-[9px] font-mono px-1 py-0 h-3.5">
-                  {r.itemCode || "ITEM"}
-                </Badge>
-                <span className="text-xs font-semibold truncate text-foreground">
-                  {r.itemName}
-                </span>
-                {r.quantity && r.quantity > 1 && (
-                  <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 h-3.5 bg-muted">
-                    ×{r.quantity}
-                  </Badge>
-                )}
-              </div>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="font-mono text-xs font-semibold text-foreground uppercase">
+              {method === "PETTY_CASH" ? "Petty Cash" : method}
+            </span>
+            {bank && (
+              <span className="font-mono text-[10px] text-muted-foreground truncate max-w-[110px]">
+                {bank.bankName}
+              </span>
             )}
-            <p className="text-xs text-muted-foreground truncate" title={r.reason}>
-              {r.reason}
-            </p>
-            {r.isUtilityBill && (
-              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border ${r.utilityBillType === "ELECTRICITY"
-                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                    : r.utilityBillType === "WATER"
-                      ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30"
-                      : "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30"
-                  }`}>
-                  {r.utilityBillType === "ELECTRICITY" ? "⚡ Light Bill" : r.utilityBillType === "WATER" ? "💧 Water Bill" : "📋 Utility Bill"}
-                </span>
-                {r.utilityAccountNumber && (
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    Acc: {r.utilityAccountNumber}
-                  </span>
-                )}
-              </div>
-            )}
-            {(r.isCrossBranchPayment || (r.isRelatedToBranch && r.relatedBranch)) && (() => {
-              const isBranchExpense = r.type === "EXPENSE" || Boolean(r.isCommunicationItem);
-              return (
-                <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                  <span className={`inline-flex text-[9px] font-medium px-1.5 py-0.5 rounded border ${
-                    isBranchExpense
-                      ? "text-amber-800 dark:text-amber-300 bg-amber-500/10 border-amber-500/20"
-                      : "text-blue-700 dark:text-blue-300 bg-blue-500/10 border-blue-500/20"
-                  }`}>
-                    {isBranchExpense ? "Inter-Branch Expense: For " : "Cross-Branch: For "}
-                    {r.beneficiaryShop?.name || r.relatedBranch?.name}
-                  </span>
-                  {r.interBranchSettlementStatus && (
-                    <span className={`inline-flex text-[8px] font-mono px-1 py-0.5 rounded border ${r.interBranchSettlementStatus === "SETTLED"
-                      ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/20"
-                      : "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20"
-                      }`}>
-                      {r.interBranchSettlementStatus === "SETTLED" ? "Settled" : "Unsettled"}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
           </div>
         );
       },
     },
     {
       accessorKey: "amount",
-      header: "Amount (LKR)",
+      header: () => <span className="text-right block whitespace-nowrap">Amount (LKR)</span>,
       cell: ({ row }) => {
         const isIncome = row.original.type === "INCOME";
         return (
-          <span className={`font-mono text-xs font-semibold ${isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
+          <span className={`font-mono text-xs font-bold text-right block whitespace-nowrap ${isIncome ? "text-emerald-500" : "text-foreground"}`}>
             {isIncome ? "+" : "-"} {Number(row.original.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         );
@@ -1456,39 +1390,54 @@ export function FinancesView({
     },
     {
       accessorKey: "status",
-      header: "Approval Status",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      header: "Status",
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap">
+          <StatusBadge status={row.original.status} />
+        </div>
+      ),
     },
     {
       accessorKey: "runningBalance",
-      header: "Running Balance",
+      header: () => <span className="text-right block whitespace-nowrap">Balance</span>,
       cell: ({ row }) => {
         const bal = row.original.runningBalance || 0;
         return (
-          <span className={`font-mono text-xs font-semibold ${bal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-            {Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          <span className="font-mono text-xs font-bold text-foreground text-right block whitespace-nowrap">
+            LKR {Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         );
       },
     },
     {
       id: "actions",
-      header: "Actions",
-      cell: () => {
+      header: () => <span className="text-right block whitespace-nowrap">Action</span>,
+      cell: ({ row }) => {
+        const rec = row.original;
+        const isOwner = rec.createdBy?._id === userId || rec.createdBy === userId;
+        const isCommEditable = isCommShop && isOwner && !rec.reviewedBy;
+        const isPending = rec.status === "PENDING" && !rec.isLocked;
+        const canEdit = isPending || isCommEditable;
+
         return (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 bg-muted/40 px-2 py-0.5 rounded border border-border/50 select-none cursor-default">
-                  <LockIcon className="size-3 text-muted-foreground/60" />
-                  <span>Locked</span>
-                </span>
-              }
-            />
-            <TooltipContent>
-              <p className="text-xs">Transaction records cannot be edited or deleted by staff. Only administrators have modification access.</p>
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex justify-end whitespace-nowrap">
+            {canEdit ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openEditModal(rec)}
+                className="h-8 px-3.5 rounded-xl border border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <EditIcon className="size-3" />
+                Edit
+              </Button>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground/70 bg-surface/30 px-2.5 py-1 rounded-xl border border-muted/20 select-none">
+                <LockIcon className="size-3 text-muted-foreground/60" />
+                Locked
+              </span>
+            )}
+          </div>
         );
       },
     },
@@ -1497,13 +1446,13 @@ export function FinancesView({
   const watchPaymentMethod = createForm.watch("paymentMethod");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 max-w-full pb-16">
       {/* Unassigned Warning Banner */}
       {unassignedStaff && (
-        <div className="flex items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-warning">
+        <div className="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-5 text-destructive">
           <AlertTriangleIcon className="size-5 shrink-0" />
           <div className="text-xs">
-            <span className="font-semibold block text-sm">No Branch Assigned</span>
+            <span className="font-bold block text-sm">No Branch Assigned</span>
             You are not currently assigned to an operational branch. You can review past records, but
             record creation is disabled until an Administrator reassigns you to a shop.
           </div>
@@ -1511,26 +1460,28 @@ export function FinancesView({
       )}
 
       {/* Header and Add Action */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <span>Branch Financial Ledger</span>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+              Branch Financial Ledger
+            </h1>
             {userShopName && (
-              <Badge variant="outline" className="font-mono text-xs">
-                <BuildingIcon className="size-3 mr-1" />
+              <span className="font-mono text-xs font-bold px-3 py-1 rounded-full border border-muted/30 bg-surface/50 text-foreground flex items-center gap-1.5">
+                <BuildingIcon className="size-3.5" />
                 {userShopName}
-              </Badge>
+              </span>
             )}
             {isCommShop && (
-              <Badge variant="secondary" className="font-mono text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                <StoreIcon className="size-3 mr-1" />
+              <span className="font-mono text-xs font-bold px-3 py-1 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-500 flex items-center gap-1.5 uppercase">
+                <StoreIcon className="size-3.5" />
                 COMMUNICATION
-              </Badge>
+              </span>
             )}
-          </h2>
-          <p className="text-xs text-muted-foreground">
+          </div>
+          <p className="text-sm md:text-base text-muted-foreground">
             {isCommShop
-              ? "Record item sales, bill payments, customer debt settlements, and branch expenses."
+              ? "Record retail item sales, utility bill payments, customer debt settlements, and branch ledger entries."
               : "Log daily petty cash, tuition fees, and operational expenses for your assigned branch."}
           </p>
         </div>
@@ -1539,10 +1490,9 @@ export function FinancesView({
           <Button
             onClick={() => handleOpenCreate("STANDARD")}
             disabled={unassignedStaff || !userShopId}
-            size="sm"
-            className="gap-1.5 text-xs font-semibold"
+            className="h-12 px-6 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm gap-2 transition-all shadow-md shrink-0 cursor-pointer"
           >
-            <PlusCircleIcon className="size-3.5" />
+            <PlusCircleIcon className="size-4" />
             Add New Record
           </Button>
         )}
@@ -1550,20 +1500,19 @@ export function FinancesView({
 
       {/* Dedicated Quick Action Toolbar for Communication Shops */}
       {isCommShop && (
-        <div className="rounded-xl border border-border/80 bg-card/60 backdrop-blur-xs p-3 shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="glass-panel rounded-3xl p-5 border border-muted/30 shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Counter Sales Group */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1 flex items-center gap-1">
-                <ShoppingCartIcon className="size-3.5 text-primary" />
-                Sales:
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground mr-1 flex items-center gap-1.5">
+                <ShoppingCartIcon className="size-4 text-foreground" />
+                POS Sales:
               </span>
 
               <Button
                 onClick={() => handleOpenCreate("POS")}
                 disabled={unassignedStaff || !userShopId}
-                size="sm"
-                className="gap-2 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs h-9 px-4"
+                className="gap-2 text-xs font-semibold bg-foreground hover:opacity-90 text-background shadow-xs h-10 px-5 rounded-2xl cursor-pointer"
               >
                 <PlusCircleIcon className="size-4" />
                 New POS Sale
@@ -1583,8 +1532,8 @@ export function FinancesView({
                   setUtilityBillOpen(true);
                 }}
                 disabled={unassignedStaff || !userShopId}
-                size="sm"
-                className="gap-2 text-xs font-semibold border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 h-9 px-3.5"
+                variant="outline"
+                className="gap-2 text-xs font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 h-10 px-4 rounded-2xl cursor-pointer"
               >
                 <ZapIcon className="size-4 text-amber-500" />
                 Bill Payment
@@ -1592,9 +1541,9 @@ export function FinancesView({
             </div>
 
             {/* Operations Group */}
-            <div className="flex items-center gap-2 flex-wrap pt-2.5 md:pt-0 border-t md:border-t-0 md:border-l md:border-border/60 md:pl-3.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1 flex items-center gap-1">
-                <SlidersHorizontalIcon className="size-3.5 text-muted-foreground" />
+            <div className="flex items-center gap-3 flex-wrap pt-3 md:pt-0 border-t md:border-t-0 md:border-l md:border-muted/30 md:pl-4">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground mr-1 flex items-center gap-1.5">
+                <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
                 Operations:
               </span>
 
@@ -1602,11 +1551,10 @@ export function FinancesView({
                 onClick={() => handleOpenCreate("STANDARD")}
                 disabled={unassignedStaff || !userShopId}
                 variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs font-medium border-border/80 hover:bg-accent/60 h-9"
+                className="gap-2 text-xs font-semibold border border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground h-10 px-4 rounded-2xl cursor-pointer"
               >
-                <ReceiptTextIcon className="size-3.5 text-primary" />
-                Record Transaction
+                <ReceiptTextIcon className="size-4 text-foreground" />
+                Branch Transaction
               </Button>
 
               <Button
@@ -1619,10 +1567,9 @@ export function FinancesView({
                 }}
                 disabled={unassignedStaff || !userShopId}
                 variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs font-medium border-border/80 hover:bg-accent/60 text-amber-700 dark:text-amber-400 h-9"
+                className="gap-2 text-xs font-semibold border border-muted/30 bg-surface/30 hover:bg-surface/60 text-amber-600 dark:text-amber-400 h-10 px-4 rounded-2xl cursor-pointer"
               >
-                <HandCoinsIcon className="size-3.5 text-amber-500" />
+                <HandCoinsIcon className="size-4 text-amber-500" />
                 Settle Debt
               </Button>
 
@@ -1636,49 +1583,58 @@ export function FinancesView({
                 }}
                 disabled={unassignedStaff || !userShopId}
                 variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs font-medium border-border/80 hover:bg-accent/60 text-rose-700 dark:text-rose-400 h-9"
+                className="gap-2 text-xs font-semibold border border-muted/30 bg-surface/30 hover:bg-surface/60 text-rose-500 h-10 px-4 rounded-2xl cursor-pointer"
               >
-                <AlertOctagonIcon className="size-3.5 text-rose-500" />
-                Wastage / Damage
+                <AlertOctagonIcon className="size-4 text-rose-500" />
+                Wastage / Defect
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-        >
-          <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Statuses</option>
-          <option value="PENDING" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Pending Only</option>
-          <option value="APPROVED" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Approved Only</option>
-          <option value="REJECTED" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Rejected Only</option>
-        </select>
+      {/* Filter Toolbar */}
+      <div className="glass-panel rounded-3xl p-6 border border-muted/30 flex flex-wrap items-center gap-4 shadow-xl">
+        <div className="space-y-1.5 min-w-[200px]">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+            Status
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/30 text-foreground px-4 text-sm font-semibold outline-none focus:border-foreground/50 transition-colors cursor-pointer"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="PENDING">Pending Verification Only</option>
+            <option value="APPROVED">Approved Only</option>
+            <option value="REJECTED">Rejected Only</option>
+          </select>
+        </div>
 
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-        >
-          <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Records</option>
-          {isCommShop && (
-            <>
-              <option value="COMM" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">📱 Communication Sales</option>
-              <option value="UTILITY_BILL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">⚡ Utility Bill Payments</option>
-            </>
-          )}
-          <option value="GENERAL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">📋 General Transactions</option>
-          {categories.map((c) => (
-            <option key={c._id} value={c._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="space-y-1.5 min-w-[220px]">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+            Category
+          </span>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/30 text-foreground px-4 text-sm font-semibold outline-none focus:border-foreground/50 transition-colors cursor-pointer"
+          >
+            <option value="ALL">All Records</option>
+            {isCommShop && (
+              <>
+                <option value="COMM">📱 Communication Sales</option>
+                <option value="UTILITY_BILL">⚡ Utility Bill Payments</option>
+              </>
+            )}
+            <option value="GENERAL">📋 General Transactions</option>
+            {categories.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <DataTable
@@ -1690,33 +1646,29 @@ export function FinancesView({
       />
 
       {/* CREATE RECORD MODAL */}
-      {/* CREATE RECORD MODAL */}
       <Dialog open={createOpen} onOpenChange={handleCreateOpenChange}>
         <DialogContent
           className={
             isCommShop
-              ? "sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[92vh] overflow-y-auto overflow-x-hidden"
-              : "sm:max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+              ? "glass-panel sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl"
+              : "glass-panel sm:max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl"
           }
         >
           {/* Mode Switcher for Communication Shops */}
           {isCommShop && (
-            <div className="pb-3 border-b border-border pr-8 space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="grid grid-cols-2 p-1 bg-muted rounded-xl border border-border w-full sm:w-auto">
+            <div className="pb-4 border-b border-muted/20 pr-8 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex rounded-2xl bg-surface/40 p-1.5 border border-muted/20 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setCommEntryMode("POS")}
-                    className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all ${commEntryMode === "POS"
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                    className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${commEntryMode === "POS"
+                      ? "bg-foreground text-background shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                       }`}
                   >
-                    <ShoppingCartIcon className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      <span className="hidden sm:inline">Products &amp; Reloads (POS)</span>
-                      <span className="sm:hidden">POS Sales</span>
-                    </span>
+                    <ShoppingCartIcon className="size-4 shrink-0" />
+                    <span>POS Sales Cart</span>
                   </button>
                   <button
                     type="button"
@@ -1724,16 +1676,13 @@ export function FinancesView({
                       setCommEntryMode("STANDARD");
                       await initializeStandardForm();
                     }}
-                    className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all ${commEntryMode === "STANDARD"
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                    className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${commEntryMode === "STANDARD"
+                      ? "bg-foreground text-background shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                       }`}
                   >
-                    <ReceiptTextIcon className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      <span className="hidden sm:inline">General Transaction / Branch Payment</span>
-                      <span className="sm:hidden">Branch Payment</span>
-                    </span>
+                    <ReceiptTextIcon className="size-4 shrink-0" />
+                    <span>Branch Transaction</span>
                   </button>
                 </div>
 
@@ -1756,26 +1705,32 @@ export function FinancesView({
             /* ========================================================
                COMMUNICATION SHOP POS MULTI-ITEM SALES FORM
                ======================================================== */
-            <div className="space-y-4 py-1">
+            <div className="space-y-5 py-1">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                  <StoreIcon className="size-5 text-primary" />
-                  Record Communication Sale
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Direct retail sales with multi-item entry. Instant auto-approval upon recording.
-                </DialogDescription>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-primary/10 text-primary border border-primary/20">
+                    <StoreIcon className="size-5" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-extrabold text-foreground tracking-tight">
+                      Record Communication Sale
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                      Direct retail sales with multi-item entry. Instant auto-approval upon recording.
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
               {/* ITEM ENTRY CARD */}
-              <div className="space-y-3 p-4 rounded-xl border border-border bg-card shadow-xs">
+              <div className="space-y-4 p-5 rounded-3xl border border-muted/30 bg-surface/30 backdrop-blur-md shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase text-primary tracking-wider flex items-center gap-1.5">
-                    <SparklesIcon className="size-3.5" />
+                  <span className="text-xs font-bold uppercase text-primary tracking-wider flex items-center gap-2">
+                    <SparklesIcon className="size-4" />
                     Item Details
                   </span>
                   {!isTelecomReloadItem(matchedItem) && (
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={isUnlistedItem}
@@ -1785,7 +1740,7 @@ export function FinancesView({
                             setMatchedItem(null);
                           }
                         }}
-                        className="size-3.5 rounded border-border"
+                        className="size-4 rounded-md border-muted/40 accent-primary cursor-pointer"
                       />
                       <span>Unlisted / Custom Item</span>
                     </label>
@@ -1793,16 +1748,16 @@ export function FinancesView({
                 </div>
 
                 {!isUnlistedItem ? (
-                  <div className="space-y-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Select / Search Item
                       </label>
                       <Input
                         placeholder="Type item code or search name (e.g. DIALOG, MOBITEL, 0010)..."
                         value={commItemLookup}
                         onChange={(e) => handleItemCodeChange(e.target.value)}
-                        className="h-9 text-xs font-mono font-semibold"
+                        className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-semibold"
                         list="comm-items-datalist"
                       />
                       <datalist id="comm-items-datalist">
@@ -1816,38 +1771,41 @@ export function FinancesView({
 
                     {/* Matched Item Preview Card */}
                     {matchedItem && (
-                      <div className={`flex items-center justify-between p-2.5 rounded-lg border text-xs ${isTelecomReloadItem(matchedItem)
-                        ? "border-primary/40 bg-primary/10"
-                        : "border-emerald-500/30 bg-emerald-500/10"
+                      <div className={`flex items-center justify-between p-3.5 rounded-2xl border text-xs ${isTelecomReloadItem(matchedItem)
+                        ? "border-primary/30 bg-primary/10 shadow-xs"
+                        : "border-emerald-500/30 bg-emerald-500/10 shadow-xs"
                         }`}>
-                        <div className="flex items-center gap-2">
-                          {isTelecomReloadItem(matchedItem) ? (
-                            <SmartphoneIcon className="size-4 text-primary" />
-                          ) : (
-                            <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
-                          )}
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${isTelecomReloadItem(matchedItem) ? "bg-primary/20 text-primary" : "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                            }`}>
+                            {isTelecomReloadItem(matchedItem) ? (
+                              <SmartphoneIcon className="size-4" />
+                            ) : (
+                              <CheckCircle2Icon className="size-4" />
+                            )}
+                          </div>
                           <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-foreground">{matchedItem.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground text-sm">{matchedItem.name}</span>
                               {isTelecomReloadItem(matchedItem) && (
-                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+                                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold">
                                   {getTelecomOperator(matchedItem)}
                                 </Badge>
                               )}
                             </div>
                             {isTelecomReloadItem(matchedItem) ? (
-                              <p className="text-[11px] text-muted-foreground">
-                                Mobile Top-up • Commission: <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono">{matchedItem.commissionRate ?? 4}%</span>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                Mobile Top-up • Commission: <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{matchedItem.commissionRate ?? 4}%</span>
                               </p>
                             ) : matchedItem.sellingPrice !== undefined && matchedItem.sellingPrice > 0 ? (
-                              <span className="text-muted-foreground ml-2 font-mono text-[11px]">
-                                (Selling Price: LKR {Number(matchedItem.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                              <span className="text-muted-foreground font-mono text-xs">
+                                Selling Price: <strong className="text-foreground">LKR {Number(matchedItem.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                               </span>
                             ) : null}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] font-mono">
+                          <Badge variant="outline" className="text-[11px] font-mono px-2.5 py-1 rounded-xl border-muted/30 bg-surface/50">
                             {matchedItem.itemCode}
                           </Badge>
                           <Button
@@ -1859,42 +1817,42 @@ export function FinancesView({
                               setCommItemLookup("");
                               setCommUnitPrice(0);
                             }}
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            className="size-7 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             title="Clear selected item"
                           >
-                            <Trash2Icon className="size-3" />
+                            <Trash2Icon className="size-3.5" />
                           </Button>
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                           Item Code (Optional)
                         </label>
                         <Input
                           placeholder="e.g. CUSTOM"
                           value={commItemLookup}
                           onChange={(e) => setCommItemLookup(e.target.value)}
-                          className="h-9 text-xs font-mono"
+                          className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                           Item Name *
                         </label>
                         <Input
                           placeholder="e.g. Phone cover repair / Binding..."
                           value={commCustomItemName}
                           onChange={(e) => setCommCustomItemName(e.target.value)}
-                          className="h-9 text-xs"
+                          className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-medium"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                           Unit Selling Price (LKR) *
                         </label>
                         <Input
@@ -1904,7 +1862,7 @@ export function FinancesView({
                           placeholder="0.00"
                           value={commUnitPrice || ""}
                           onChange={(e) => setCommUnitPrice(Math.max(0, Number(e.target.value) || 0))}
-                          className="h-9 text-xs font-mono font-semibold"
+                          className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold"
                         />
                       </div>
                     </div>
@@ -1913,16 +1871,16 @@ export function FinancesView({
 
                 {/* IF TELECOM RELOAD: DUAL MODE (CUSTOM RELOAD VS FIXED PACKAGE) */}
                 {isTelecomReloadItem(matchedItem) ? (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-3.5 pt-2">
                     {/* Segmented Mode Selector */}
-                    <div className="flex items-center gap-1 p-1 bg-muted/70 rounded-lg border border-border">
+                    <div className="flex items-center gap-1.5 p-1.5 bg-surface/40 rounded-2xl border border-muted/20">
                       <button
                         type="button"
                         onClick={() => {
                           setCommTelecomType("CUSTOM");
                         }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all ${commTelecomType === "CUSTOM"
-                          ? "bg-primary text-primary-foreground shadow-xs"
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${commTelecomType === "CUSTOM"
+                          ? "bg-foreground text-background shadow-xs"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
                       >
@@ -1940,8 +1898,8 @@ export function FinancesView({
                             setCommUnitPrice(matchedItem.sellingPrice);
                           }
                         }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all ${commTelecomType === "PACKAGE"
-                          ? "bg-primary text-primary-foreground shadow-xs"
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${commTelecomType === "PACKAGE"
+                          ? "bg-foreground text-background shadow-xs"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
                       >
@@ -1952,13 +1910,13 @@ export function FinancesView({
 
                     {commTelecomType === "CUSTOM" ? (
                       /* CUSTOM RELOAD AMOUNT MODE */
-                      <div className="space-y-2.5 p-3.5 rounded-xl border border-primary/30 bg-primary/5">
+                      <div className="space-y-3 p-4 rounded-2xl border border-primary/30 bg-primary/5 shadow-xs">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-foreground uppercase flex items-center gap-1.5">
+                          <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                             <SmartphoneIcon className="size-4 text-primary" />
                             <span>Reload Total Price (LKR) *</span>
                           </label>
-                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                             {getTelecomOperator(matchedItem)} Commission: {matchedItem?.commissionRate ?? 4}%
                           </span>
                         </div>
@@ -1970,21 +1928,21 @@ export function FinancesView({
                           placeholder="Enter reload amount (e.g. 50, 100, 200, 500, 1000)..."
                           value={commUnitPrice || ""}
                           onChange={(e) => setCommUnitPrice(Math.max(0, Number(e.target.value) || 0))}
-                          className="h-10 text-sm font-mono font-bold text-foreground bg-background"
+                          className="h-12 text-base font-mono font-bold text-foreground bg-surface/50 rounded-2xl border-muted/30"
                           autoFocus
                         />
 
                         {/* Quick Presets */}
                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold mr-1">Quick Presets:</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold mr-1">Quick Presets:</span>
                           {[50, 100, 150, 200, 350, 500, 1000, 2000].map((amt) => (
                             <button
                               key={amt}
                               type="button"
                               onClick={() => setCommUnitPrice(amt)}
-                              className={`px-2.5 py-0.5 rounded text-xs font-mono border transition-all ${commUnitPrice === amt
-                                ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                                : "bg-background border-border text-foreground hover:bg-muted"
+                              className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${commUnitPrice === amt
+                                ? "bg-foreground text-background border-foreground shadow-xs"
+                                : "bg-surface/50 border-muted/30 text-foreground hover:bg-surface/80"
                                 }`}
                             >
                               LKR {amt}
@@ -1993,9 +1951,9 @@ export function FinancesView({
                         </div>
 
                         {commUnitPrice > 0 && (
-                          <div className="flex items-center justify-between pt-1 border-t border-primary/20 text-xs">
-                            <span className="text-muted-foreground">Estimated Profit:</span>
-                            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          <div className="flex items-center justify-between pt-2 border-t border-primary/20 text-xs">
+                            <span className="text-muted-foreground font-medium">Estimated Profit:</span>
+                            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                               +LKR {((commUnitPrice * ((matchedItem?.commissionRate ?? 4) / 100))).toFixed(2)} ({matchedItem?.commissionRate ?? 4}%)
                             </span>
                           </div>
@@ -2003,24 +1961,24 @@ export function FinancesView({
                       </div>
                     ) : (
                       /* FIXED PACKAGE / CARD MODE */
-                      <div className="space-y-3 p-3.5 rounded-xl border border-primary/30 bg-primary/5">
+                      <div className="space-y-3.5 p-4 rounded-2xl border border-primary/30 bg-primary/5 shadow-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-foreground uppercase flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                             <PackageIcon className="size-4 text-primary" />
                             <span>Package Pricing Details</span>
                           </span>
-                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                             {getTelecomOperator(matchedItem)} Base Commission: {matchedItem?.commissionRate ?? 4}%
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-semibold uppercase text-muted-foreground">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                 Base Unit Price (LKR) *
                               </label>
-                              <span className="text-[10px] text-muted-foreground">Package Face Value</span>
+                              <span className="text-[10px] text-muted-foreground font-medium">Package Face Value</span>
                             </div>
                             <Input
                               type="number"
@@ -2029,17 +1987,17 @@ export function FinancesView({
                               placeholder="e.g. 998"
                               value={commPackageBasePrice || ""}
                               onChange={(e) => setCommPackageBasePrice(Math.max(0, Number(e.target.value) || 0))}
-                              className="h-9 text-xs font-mono font-bold bg-background"
+                              className="h-11 rounded-2xl text-xs font-mono font-bold bg-surface/50 border-muted/30"
                               autoFocus
                             />
                           </div>
 
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-semibold uppercase text-muted-foreground">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                 Selling Price (LKR) *
                               </label>
-                              <span className="text-[10px] text-muted-foreground">Customer Due</span>
+                              <span className="text-[10px] text-muted-foreground font-medium">Customer Due</span>
                             </div>
                             <Input
                               type="number"
@@ -2048,14 +2006,14 @@ export function FinancesView({
                               placeholder="e.g. 1000"
                               value={commUnitPrice || ""}
                               onChange={(e) => setCommUnitPrice(Math.max(0, Number(e.target.value) || 0))}
-                              className="h-9 text-xs font-mono font-bold bg-background"
+                              className="h-11 rounded-2xl text-xs font-mono font-bold bg-surface/50 border-muted/30"
                             />
                           </div>
                         </div>
 
                         {/* Common Package Presets */}
                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold mr-1">Common Packages:</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold mr-1">Common Packages:</span>
                           {[
                             { name: "998 → 1000", base: 998, sell: 1000 },
                             { name: "498 → 500", base: 498, sell: 500 },
@@ -2070,9 +2028,9 @@ export function FinancesView({
                                 setCommPackageBasePrice(pkg.base);
                                 setCommUnitPrice(pkg.sell);
                               }}
-                              className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-all ${commPackageBasePrice === pkg.base && commUnitPrice === pkg.sell
-                                ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                                : "bg-background border-border text-foreground hover:bg-muted"
+                              className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${commPackageBasePrice === pkg.base && commUnitPrice === pkg.sell
+                                ? "bg-foreground text-background border-foreground shadow-xs"
+                                : "bg-surface/50 border-muted/30 text-foreground hover:bg-surface/80"
                                 }`}
                             >
                               {pkg.name}
@@ -2086,25 +2044,24 @@ export function FinancesView({
                       <Button
                         type="button"
                         onClick={handleAddItemToCart}
-                        size="sm"
                         disabled={
                           commTelecomType === "PACKAGE"
                             ? !commPackageBasePrice || commPackageBasePrice <= 0 || !commUnitPrice || commUnitPrice <= 0
                             : !commUnitPrice || commUnitPrice <= 0
                         }
-                        className="gap-1.5 text-xs font-semibold"
+                        className="h-11 px-6 rounded-2xl gap-2 text-xs font-bold shadow-sm"
                       >
-                        <PlusCircleIcon className="size-3.5" />
+                        <PlusCircleIcon className="size-4" />
                         {commTelecomType === "PACKAGE" ? "Add Package to Sale" : "Add Reload to Sale"}
                       </Button>
                     </div>
                   </div>
                 ) : (
                   /* STANDARD ITEM FIELDS: QUANTITY, DISCOUNT, ADDITIONAL COST */
-                  <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  <div className="space-y-4 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                           Quantity *
                         </label>
                         <Input
@@ -2114,12 +2071,12 @@ export function FinancesView({
                           placeholder="1"
                           value={commQuantity}
                           onChange={(e) => setCommQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="h-9 text-xs font-mono font-semibold"
+                          className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                           Discount (LKR)
                         </label>
                         <Input
@@ -2129,12 +2086,12 @@ export function FinancesView({
                           placeholder="0.00"
                           value={commDiscountPrice || ""}
                           onChange={(e) => setCommDiscountPrice(Math.max(0, Number(e.target.value) || 0))}
-                          className="h-9 text-xs font-mono"
+                          className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-medium"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                           <span>Additional Charge</span>
                           <span className="text-[9px] text-muted-foreground font-normal">(Optional)</span>
                         </label>
@@ -2145,13 +2102,13 @@ export function FinancesView({
                           placeholder="0.00"
                           value={commAdditionalCost || ""}
                           onChange={(e) => setCommAdditionalCost(Math.max(0, Number(e.target.value) || 0))}
-                          className="h-9 text-xs font-mono"
+                          className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-medium"
                           title="Extra service charge or additional fee"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                           <span>Customer Due</span>
                           {!isUnlistedItem && matchedItem && matchedItem.sellingPrice !== undefined && (
                             <span className="text-[10px] text-muted-foreground font-mono font-normal">
@@ -2159,7 +2116,7 @@ export function FinancesView({
                             </span>
                           )}
                         </label>
-                        <div className="h-9 px-3 rounded-md border border-border bg-muted/40 flex items-center font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                        <div className="h-11 px-3.5 rounded-2xl border border-muted/30 bg-surface/40 flex items-center font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
                           LKR {Math.max(0, (commQuantity * (isUnlistedItem ? commUnitPrice : (matchedItem?.sellingPrice || 0))) - commDiscountPrice + (commAdditionalCost || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                       </div>
@@ -2169,10 +2126,9 @@ export function FinancesView({
                       <Button
                         type="button"
                         onClick={handleAddItemToCart}
-                        size="sm"
-                        className="gap-1.5 text-xs font-semibold"
+                        className="h-11 px-6 rounded-2xl gap-2 text-xs font-bold shadow-sm"
                       >
-                        <PlusCircleIcon className="size-3.5" />
+                        <PlusCircleIcon className="size-4" />
                         Add Item to Sale
                       </Button>
                     </div>
@@ -2181,19 +2137,19 @@ export function FinancesView({
               </div>
 
               {/* MULTI-ITEM SALE LIST TABLE */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-                  <span className="flex items-center gap-1.5 uppercase text-muted-foreground tracking-wider text-[11px]">
-                    <ShoppingCartIcon className="size-3.5 text-primary" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 uppercase text-muted-foreground font-bold tracking-wider text-xs">
+                    <ShoppingCartIcon className="size-4 text-primary" />
                     Items in this Sale ({commCartItems.length})
                   </span>
                   {commCartItems.length > 0 && (
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
+                      size="sm"
                       onClick={() => setCommCartItems([])}
-                      className="text-[11px] text-muted-foreground hover:text-destructive h-6 px-2"
+                      className="text-xs text-muted-foreground hover:text-destructive h-7 px-2.5 rounded-xl"
                     >
                       Clear List
                     </Button>
@@ -2201,34 +2157,34 @@ export function FinancesView({
                 </div>
 
                 {commCartItems.length > 0 ? (
-                  <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="rounded-3xl border border-muted/30 overflow-hidden bg-surface/30 backdrop-blur-md shadow-sm">
                     <table className="w-full text-xs">
-                      <thead className="bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground">
+                      <thead className="bg-surface/50 border-b border-muted/30 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         <tr>
-                          <th className="py-2 px-3 text-left w-8">#</th>
-                          <th className="py-2 px-3 text-left">Item</th>
-                          <th className="py-2 px-3 text-right">Unit Price</th>
-                          <th className="py-2 px-3 text-center w-16">Qty</th>
-                          <th className="py-2 px-3 text-right">Subtotal</th>
-                          <th className="py-2 px-3 text-right">Discount</th>
-                          <th className="py-2 px-3 text-right">Net Amount</th>
-                          <th className="py-2 px-3 text-center w-12">Action</th>
+                          <th className="py-3 px-3.5 text-left w-10">#</th>
+                          <th className="py-3 px-3.5 text-left">Item</th>
+                          <th className="py-3 px-3.5 text-right">Unit Price</th>
+                          <th className="py-3 px-3.5 text-center w-16">Qty</th>
+                          <th className="py-3 px-3.5 text-right">Subtotal</th>
+                          <th className="py-3 px-3.5 text-right">Discount</th>
+                          <th className="py-3 px-3.5 text-right">Net Amount</th>
+                          <th className="py-3 px-3.5 text-center w-12">Action</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border font-mono">
+                      <tbody className="divide-y divide-muted/20 font-mono">
                         {commCartItems.map((item, idx) => (
-                          <tr key={item.id} className="hover:bg-muted/30">
-                            <td className="py-2 px-3 text-muted-foreground text-center">{idx + 1}</td>
-                            <td className="py-2 px-3 font-sans font-medium text-foreground">
+                          <tr key={item.id} className="hover:bg-surface/40 transition-colors">
+                            <td className="py-2.5 px-3.5 text-muted-foreground text-center">{idx + 1}</td>
+                            <td className="py-2.5 px-3.5 font-sans font-medium text-foreground">
                               <div className="flex items-center gap-1.5">
-                                <span>{item.itemName}</span>
+                                <span className="font-semibold">{item.itemName}</span>
                                 {item.isTelecomReload && (
-                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-mono bg-primary/10 text-primary border-primary/30">
+                                  <Badge variant="outline" className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-primary/10 text-primary border-primary/30">
                                     {item.telecomType === "PACKAGE" ? "PACKAGE" : "RELOAD"} {item.telecomOperator || ""} {item.commissionRate ? `(${item.commissionRate}%)` : ""}
                                   </Badge>
                                 )}
                               </div>
-                              <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-2">
+                              <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2 mt-0.5">
                                 <span>{item.itemCode || "ITEM"}</span>
                                 {item.isTelecomReload && item.commissionEarned !== undefined && (
                                   <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -2243,26 +2199,26 @@ export function FinancesView({
                                 )}
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-right">
+                            <td className="py-2.5 px-3.5 text-right text-muted-foreground">
                               LKR {item.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-2 px-3 text-center">{item.quantity}</td>
-                            <td className="py-2 px-3 text-right text-muted-foreground">
+                            <td className="py-2.5 px-3.5 text-center font-bold text-foreground">{item.quantity}</td>
+                            <td className="py-2.5 px-3.5 text-right text-muted-foreground">
                               LKR {item.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-2 px-3 text-right text-muted-foreground">
+                            <td className="py-2.5 px-3.5 text-right text-muted-foreground">
                               {item.discountPrice > 0 ? `LKR ${item.discountPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
                             </td>
-                            <td className="py-2 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                            <td className="py-2.5 px-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
                               LKR {item.netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-2 px-3 text-center">
+                            <td className="py-2.5 px-3.5 text-center">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon-xs"
                                 onClick={() => handleRemoveCartItem(item.id)}
-                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                className="size-7 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                 title="Remove Item"
                               >
                                 <Trash2Icon className="size-3.5" />
@@ -2271,12 +2227,12 @@ export function FinancesView({
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot className="bg-muted/30 border-t border-border font-mono font-bold">
+                      <tfoot className="bg-surface/50 border-t border-muted/30 font-mono font-bold">
                         <tr>
-                          <td colSpan={6} className="py-2.5 px-3 text-right text-xs uppercase text-foreground">
+                          <td colSpan={6} className="py-3 px-3.5 text-right text-xs uppercase tracking-wider text-foreground">
                             Grand Total ({commCartItems.length} {commCartItems.length === 1 ? "item" : "items"}):
                           </td>
-                          <td className="py-2.5 px-3 text-right text-sm text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3 px-3.5 text-right text-base text-emerald-600 dark:text-emerald-400 font-extrabold">
                             LKR {commCartItems.reduce((acc, i) => acc + i.netAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </td>
                           <td></td>
@@ -2285,40 +2241,40 @@ export function FinancesView({
                     </table>
                   </div>
                 ) : (
-                  <div className="p-6 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground">No items added to this sale yet.</p>
-                    <p className="text-[11px]">Enter item code, quantity, and total price above, then click &quot;+ Add Item to Sale&quot;.</p>
+                  <div className="p-8 rounded-3xl border border-dashed border-muted/30 bg-surface/20 text-center text-xs text-muted-foreground space-y-1.5">
+                    <p className="font-semibold text-foreground text-sm">No items added to this sale yet.</p>
+                    <p className="text-xs text-muted-foreground">Enter item code, quantity, and total price above, then click &quot;+ Add Item to Sale&quot;.</p>
                   </div>
                 )}
               </div>
 
               {/* PAYMENT METHOD & CUSTOMER CREDIT SETTINGS */}
-              <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-foreground">
-                    <DollarSignIcon className="size-3.5 text-primary" />
+              <div className="p-5 rounded-3xl border border-muted/30 bg-surface/30 backdrop-blur-md shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-foreground">
+                    <DollarSignIcon className="size-4 text-primary" />
                     <span>Payment Method</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
+                  <div className="flex items-center gap-1.5 bg-surface/40 p-1.5 rounded-2xl border border-muted/20">
                     <button
                       type="button"
                       onClick={() => setCommPaymentMethod("CASH")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${commPaymentMethod === "CASH" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${commPaymentMethod === "CASH" ? "bg-foreground text-background shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       Cash
                     </button>
                     <button
                       type="button"
                       onClick={() => setCommPaymentMethod("CREDIT")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${commPaymentMethod === "CREDIT" ? "bg-amber-500 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${commPaymentMethod === "CREDIT" ? "bg-amber-500 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       Credit
                     </button>
                     <button
                       type="button"
                       onClick={() => setCommPaymentMethod("BANK_TRANSFER")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${commPaymentMethod === "BANK_TRANSFER" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${commPaymentMethod === "BANK_TRANSFER" ? "bg-foreground text-background shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       Bank / Online
                     </button>
@@ -2327,22 +2283,22 @@ export function FinancesView({
 
                 {/* If CREDIT is selected, show Customer Phone & Name with auto-lookup */}
                 {commPaymentMethod === "CREDIT" && (
-                  <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-3">
+                  <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-3.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                        <UserCheckIcon className="size-3.5" />
+                      <span className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                        <UserCheckIcon className="size-4" />
                         Credit Customer Information
                       </span>
                       {existingCreditCustomer && (
-                        <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 bg-card text-amber-700 dark:text-amber-300">
+                        <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 bg-card text-amber-700 dark:text-amber-300 px-2.5 py-0.5 rounded-full">
                           Existing Debt: LKR {Number(existingCreditCustomer.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </Badge>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center justify-between">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center justify-between">
                           <span>Mobile Number *</span>
                           <span className="text-[9px] text-muted-foreground font-normal">(auto-lookup)</span>
                         </label>
@@ -2354,19 +2310,19 @@ export function FinancesView({
                             setCommCustomerPhone(val);
                             handleLookupCustomer(val, "SALE");
                           }}
-                          className="h-8 text-xs font-mono font-semibold bg-background"
+                          className="h-11 text-xs font-mono font-bold bg-surface/50 border-muted/30 rounded-2xl"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                           Customer Name *
                         </label>
                         <Input
                           placeholder="e.g. Kamal Perera"
                           value={commCustomerName}
                           onChange={(e) => setCommCustomerName(e.target.value)}
-                          className="h-8 text-xs font-medium bg-background"
+                          className="h-11 text-xs font-semibold bg-surface/50 border-muted/30 rounded-2xl"
                         />
                       </div>
                     </div>
@@ -2375,18 +2331,18 @@ export function FinancesView({
 
                 {/* If BANK_TRANSFER is selected */}
                 {commPaymentMethod === "BANK_TRANSFER" && (
-                  <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-2">
-                    <label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                  <div className="p-4 rounded-2xl border border-muted/30 bg-surface/40 space-y-2">
+                    <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                       Target Bank Account (Optional)
                     </label>
                     <select
                       value={commBankAccountId || ""}
                       onChange={(e) => setCommBankAccountId(e.target.value || null)}
-                      className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2 text-xs font-medium outline-none focus:border-ring"
+                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                     >
-                      <option value="">Select Bank Account (or Leave Empty)...</option>
+                      <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Select Bank Account (or Leave Empty)...</option>
                       {bankAccounts.map((b) => (
-                        <option key={b._id} value={b._id}>
+                        <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                           {b.bankName} - {b.accountNumber} ({b.accountName})
                         </option>
                       ))}
@@ -2396,8 +2352,8 @@ export function FinancesView({
               </div>
 
               {/* CROSS-BRANCH TRANSFER RELATIONSHIP */}
-              <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground select-none">
+              <div className="p-5 rounded-3xl border border-muted/30 bg-surface/30 backdrop-blur-md shadow-sm space-y-3.5">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-foreground select-none">
                   <input
                     type="checkbox"
                     checked={commIsRelatedToBranch}
@@ -2408,26 +2364,26 @@ export function FinancesView({
                         setCommRelatedBranchNote("");
                       }
                     }}
-                    className="size-4 rounded border-border text-primary focus:ring-primary"
+                    className="size-4 rounded-md border-muted/40 accent-primary cursor-pointer"
                   />
                   <span>Is this transaction related to another branch / shop?</span>
                 </label>
 
                 {commIsRelatedToBranch && (
-                  <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-2.5">
-                    <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-semibold">
-                      <AlertTriangleIcon className="size-3.5" />
-                      Inter-Branch Expense: Billed to target branch as an operational expense. Requires Verifier Approval.
+                  <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                      <AlertTriangleIcon className="size-4 shrink-0" />
+                      <span>Inter-Branch Expense: Billed to target branch as an operational expense. Requires Verifier Approval.</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                           Related Branch / Shop *
                         </label>
                         <select
                           value={commRelatedBranch || ""}
                           onChange={(e) => setCommRelatedBranch(e.target.value || null)}
-                          className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                          className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                         >
                           <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                             Select Branch / Shop...
@@ -2445,15 +2401,15 @@ export function FinancesView({
                             ))}
                         </select>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                           Transfer / Cross-Branch Note
                         </label>
                         <Input
                           placeholder="Reason for cross-branch transfer / note..."
                           value={commRelatedBranchNote}
                           onChange={(e) => setCommRelatedBranchNote(e.target.value)}
-                          className="h-8 text-xs bg-background"
+                          className="h-11 rounded-2xl text-xs bg-surface/50 border-muted/30"
                         />
                       </div>
                     </div>
@@ -2462,8 +2418,8 @@ export function FinancesView({
               </div>
 
               {/* FOOTER */}
-              <div className="pt-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground select-none">
+              <div className="pt-4 border-t border-muted/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-foreground select-none">
                   <input
                     type="checkbox"
                     checked={alwaysOnForm}
@@ -2473,16 +2429,16 @@ export function FinancesView({
                         localStorage.setItem("comm_always_on_form", e.target.checked ? "true" : "false");
                       }
                     }}
-                    className="size-4 rounded border-border"
+                    className="size-4 rounded-md border-muted/40 accent-primary cursor-pointer"
                   />
                   <span>Always on this form (Keep form open for continuous sales)</span>
                 </label>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     onClick={() => {
                       if (alwaysOnForm) {
                         toast.create({
@@ -2494,22 +2450,23 @@ export function FinancesView({
                         setCreateOpen(false);
                       }
                     }}
+                    className="h-11 px-6 rounded-2xl border-muted/30 text-xs font-semibold"
                   >
                     Close Form
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
+                    size="lg"
                     onClick={handleBatchCommSale}
                     disabled={submittingCommSale}
-                    className="gap-1.5 font-semibold"
+                    className="h-11 px-7 rounded-2xl gap-2 font-bold text-xs bg-foreground text-background shadow-md"
                   >
                     {submittingCommSale ? (
-                      <Loader2Icon className="size-3.5 animate-spin" />
+                      <Loader2Icon className="size-4 animate-spin" />
                     ) : commIsRelatedToBranch ? (
-                      <SendIcon className="size-3.5" />
+                      <SendIcon className="size-4" />
                     ) : (
-                      <ReceiptTextIcon className="size-3.5" />
+                      <ReceiptTextIcon className="size-4" />
                     )}
                     {commIsRelatedToBranch ? "Submit for Approval" : "Complete & Record Sale"}
                   </Button>
@@ -2522,11 +2479,11 @@ export function FinancesView({
                ======================================================== */
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <PlusCircleIcon className="size-4 text-primary" />
+                <DialogTitle className="flex items-center gap-2 text-xl font-extrabold text-foreground">
+                  <PlusCircleIcon className="size-5 text-primary" />
                   Add Finance Record
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs text-muted-foreground">
                   Submit an expense or deposit for {userShopName}
                 </DialogDescription>
               </DialogHeader>
@@ -2534,26 +2491,26 @@ export function FinancesView({
               <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 py-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Date</label>
-                    <Input type="date" {...createForm.register("date")} className="h-9 text-xs" />
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Date</label>
+                    <Input type="date" {...createForm.register("date")} className="h-12 rounded-2xl bg-surface/30 border-muted/30 text-sm font-mono" />
                     {createForm.formState.errors.date && (
                       <p className="text-xs text-destructive">{createForm.formState.errors.date.message}</p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Branch</label>
-                    <Input value={userShopName || "Unassigned"} disabled className="h-9 text-xs bg-muted/50" />
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Branch</label>
+                    <Input value={userShopName || "Unassigned"} disabled className="h-12 rounded-2xl bg-surface/20 border-muted/20 text-sm opacity-75 font-semibold" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Category</label>
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Category</label>
                     <select
                       value={createForm.watch("category")}
                       onChange={(e) => handleCategoryChange(e.target.value)}
-                      className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/30 text-foreground px-4 text-sm font-semibold outline-none focus:border-foreground/50 transition-colors cursor-pointer"
                     >
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
@@ -2564,10 +2521,10 @@ export function FinancesView({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Payment Method</label>
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Payment Method</label>
                     <select
                       {...createForm.register("paymentMethod")}
-                      className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/30 text-foreground px-4 text-sm font-semibold outline-none focus:border-foreground/50 transition-colors cursor-pointer"
                     >
                       <option value="CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cash</option>
                       <option value="PETTY_CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash</option>
@@ -2582,14 +2539,14 @@ export function FinancesView({
                 {(watchPaymentMethod === "BANK_TRANSFER" ||
                   watchPaymentMethod === "ONLINE" ||
                   watchPaymentMethod === "CHEQUE") && (
-                    <div className="space-y-1.5 p-2.5 rounded-lg border border-border bg-muted/30">
-                      <label className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                    <div className="space-y-1.5 p-4 rounded-2xl border border-muted/30 bg-surface/30">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <LandmarkIcon className="size-3.5 text-primary" />
                         Select Bank Account
                       </label>
                       <select
                         {...createForm.register("bankAccount")}
-                        className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                        className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/30 text-foreground px-4 text-sm font-semibold outline-none focus:border-foreground/50 transition-colors cursor-pointer"
                       >
                         <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Select Bank Account...</option>
                         {bankAccounts.map((b) => (
@@ -2603,21 +2560,21 @@ export function FinancesView({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Bill Number</label>
-                    <Input {...createForm.register("billNumber")} className="h-9 text-xs font-mono" />
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Bill Number</label>
+                    <Input {...createForm.register("billNumber")} className="h-12 rounded-2xl bg-surface/30 border-muted/30 text-sm font-mono font-semibold" />
                     {createForm.formState.errors.billNumber && (
                       <p className="text-xs text-destructive">{createForm.formState.errors.billNumber.message}</p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount (LKR)</label>
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Amount (LKR)</label>
                     <Input
                       type="number"
                       step="any"
                       placeholder="0.00"
                       {...createForm.register("amount", { valueAsNumber: true })}
-                      className="h-9 text-xs font-mono font-semibold"
+                      className="h-12 rounded-2xl bg-surface/30 border-muted/30 text-sm font-mono font-bold"
                     />
                     {createForm.formState.errors.amount && (
                       <p className="text-xs text-destructive">{createForm.formState.errors.amount.message}</p>
@@ -2626,12 +2583,12 @@ export function FinancesView({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">Reason / Description</label>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Reason / Description</label>
                   <Textarea
                     placeholder="Details of expense, purpose, or receipt explanation..."
                     {...createForm.register("reason")}
-                    className="text-xs"
-                    rows={2}
+                    className="text-sm rounded-2xl border-muted/30 bg-surface/30 p-4 text-foreground focus:border-foreground/50 transition-colors resize-none"
+                    rows={3}
                   />
                   {createForm.formState.errors.reason && (
                     <p className="text-xs text-destructive">{createForm.formState.errors.reason.message}</p>
@@ -2639,12 +2596,12 @@ export function FinancesView({
                 </div>
 
                 {/* Cross-Branch Payment Option */}
-                <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2">
+                <div className="p-4 rounded-2xl border border-muted/30 bg-surface/30 space-y-3">
                   <label className="text-xs font-semibold text-foreground flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       {...createForm.register("isCrossBranchPayment")}
-                      className="rounded border-input text-primary focus:ring-primary size-4"
+                      className="rounded border-muted/40 text-primary focus:ring-primary size-4"
                     />
                     <span>Cross-Branch Payment (Received for Another Branch)</span>
                   </label>
@@ -2653,15 +2610,15 @@ export function FinancesView({
                   </p>
 
                   {createForm.watch("isCrossBranchPayment") && (
-                    <div className="pt-2 border-t border-border space-y-2">
-                      <div className="space-y-1">
+                    <div className="pt-3 border-t border-muted/20 space-y-3">
+                      <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                          <BuildingIcon className="size-3 text-primary" />
+                          <BuildingIcon className="size-3.5 text-primary" />
                           Beneficiary Branch (Whose income is this?)
                         </label>
                         <select
                           {...createForm.register("beneficiaryShop")}
-                          className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                          className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/30 text-foreground px-4 text-sm font-semibold outline-none focus:border-foreground/50 transition-colors cursor-pointer"
                         >
                           <option value="">Select Target Branch...</option>
                           {activeShops
@@ -2673,19 +2630,18 @@ export function FinancesView({
                             ))}
                         </select>
                       </div>
-                      <p className="text-[11px] text-blue-600 dark:text-blue-400 bg-blue-500/10 p-2 rounded border border-blue-500/20">
+                      <p className="text-[11px] text-blue-600 dark:text-blue-400 bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 leading-relaxed">
                         💡 <strong>Drawer Accounting:</strong> Physical cash will be added to your drawer ({userShopName || "this shop"}), and sales revenue will be attributed to the selected branch after verification.
                       </p>
                     </div>
                   )}
                 </div>
 
-
-                <DialogFooter className="pt-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
+                <DialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
+                  <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer">
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" disabled={createForm.formState.isSubmitting}>
+                  <Button type="submit" disabled={createForm.formState.isSubmitting} className="h-11 px-7 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-xs shadow-md gap-2 cursor-pointer">
                     {createForm.formState.isSubmitting ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
                     Submit for Approval
                   </Button>
@@ -2698,55 +2654,61 @@ export function FinancesView({
 
       {/* EDIT RECORD MODAL */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className={watchEditIsComm ? "sm:max-w-2xl max-h-[90vh] overflow-y-auto" : "sm:max-w-md"}>
+        <DialogContent className={watchEditIsComm ? "glass-panel sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl" : "glass-panel sm:max-w-lg max-h-[90vh] overflow-y-auto p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl"}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {watchEditIsComm ? <StoreIcon className="size-4 text-primary" /> : <EditIcon className="size-4 text-primary" />}
-              {watchEditIsComm ? "Edit Communication Sale" : "Edit Pending Transaction"}
-            </DialogTitle>
-            <DialogDescription>
-              {watchEditIsComm
-                ? "Modify item, pricing, or cross-branch transfer details before verification"
-                : "Modify record before verification review"}
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-primary/10 text-primary border border-primary/20">
+                {watchEditIsComm ? <StoreIcon className="size-5" /> : <EditIcon className="size-5" />}
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-extrabold text-foreground tracking-tight">
+                  {watchEditIsComm ? "Edit Communication Sale" : "Edit Pending Transaction"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  {watchEditIsComm
+                    ? "Modify item, pricing, or cross-branch transfer details before verification"
+                    : "Modify record before verification review"}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-2">
             {watchEditIsComm ? (
               <>
                 {/* COMMUNICATION ITEM FIELDS */}
-                <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
-                  <span className="text-xs font-bold uppercase text-primary tracking-wider flex items-center gap-1.5">
-                    <SparklesIcon className="size-3.5" />
+                <div className="p-5 rounded-3xl border border-muted/30 bg-surface/30 backdrop-blur-md shadow-sm space-y-4">
+                  <span className="text-xs font-bold uppercase text-primary tracking-wider flex items-center gap-2">
+                    <SparklesIcon className="size-4" />
                     Item &amp; Pricing Details
                   </span>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Item Code
                       </label>
                       <Input
                         placeholder="e.g. 0010"
                         {...editForm.register("itemCode")}
-                        className="h-9 text-xs font-mono"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono"
                       />
                     </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Item Name *
                       </label>
                       <Input
                         placeholder="Item name..."
                         {...editForm.register("itemName")}
-                        className="h-9 text-xs font-medium"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-medium"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Quantity *
                       </label>
                       <Input
@@ -2754,11 +2716,11 @@ export function FinancesView({
                         min="1"
                         step="1"
                         {...editForm.register("quantity", { valueAsNumber: true })}
-                        className="h-9 text-xs font-mono font-semibold"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold"
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Unit Price (LKR) *
                       </label>
                       <Input
@@ -2767,11 +2729,11 @@ export function FinancesView({
                         step="any"
                         placeholder="0.00"
                         {...editForm.register("sellingPrice", { valueAsNumber: true })}
-                        className="h-9 text-xs font-mono font-semibold"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold"
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Discount (LKR)
                       </label>
                       <Input
@@ -2780,11 +2742,11 @@ export function FinancesView({
                         step="any"
                         placeholder="0.00"
                         {...editForm.register("discountPrice", { valueAsNumber: true })}
-                        className="h-9 text-xs font-mono"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-medium"
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Additional Charge (LKR)
                       </label>
                       <Input
@@ -2793,13 +2755,13 @@ export function FinancesView({
                         step="any"
                         placeholder="0.00"
                         {...editForm.register("additionalCost", { valueAsNumber: true })}
-                        className="h-9 text-xs font-mono"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-medium"
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-xs font-mono">
-                    <span className="font-sans font-medium text-foreground">Calculated Net Total:</span>
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-xs font-mono shadow-xs">
+                    <span className="font-sans font-semibold text-foreground">Calculated Net Total:</span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                       LKR {Math.max(0, (watchEditQty * watchEditSelling) - watchEditDiscount + (watchEditAdditional || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
@@ -2807,30 +2769,30 @@ export function FinancesView({
                 </div>
 
                 {/* CROSS-BRANCH TRANSFER EDIT */}
-                <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground select-none">
+                <div className="p-5 rounded-3xl border border-muted/30 bg-surface/30 backdrop-blur-md shadow-sm space-y-3.5">
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-foreground select-none">
                     <input
                       type="checkbox"
                       {...editForm.register("isRelatedToBranch")}
-                      className="size-4 rounded border-border text-primary focus:ring-primary"
+                      className="size-4 rounded-md border-muted/40 accent-primary cursor-pointer"
                     />
                     <span>Is this transaction related to another branch / shop?</span>
                   </label>
 
                   {watchEditIsBranch && (
-                    <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-2.5">
-                      <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-semibold">
-                        <AlertTriangleIcon className="size-3.5" />
+                    <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                        <AlertTriangleIcon className="size-4 shrink-0" />
                         Cross-Branch Transfer: Requires Verifier Review &amp; Approval
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                             Related Branch / Shop *
                           </label>
                           <select
                             {...editForm.register("relatedBranch")}
-                            className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                            className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                           >
                             <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                               Select Branch / Shop...
@@ -2848,14 +2810,14 @@ export function FinancesView({
                               ))}
                           </select>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                             Transfer / Cross-Branch Note
                           </label>
                           <Input
                             placeholder="Reason for cross-branch transfer / note..."
                             {...editForm.register("relatedBranchNote")}
-                            className="h-8 text-xs bg-background"
+                            className="h-11 rounded-2xl text-xs bg-surface/50 border-muted/30"
                           />
                         </div>
                       </div>
@@ -2866,21 +2828,21 @@ export function FinancesView({
                 {/* TRANSACTION METADATA */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Date</label>
-                    <Input type="date" {...editForm.register("date")} className="h-9 text-xs" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</label>
+                    <Input type="date" {...editForm.register("date")} className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Bill Number</label>
-                    <Input {...editForm.register("billNumber")} className="h-9 text-xs font-mono" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bill Number</label>
+                    <Input {...editForm.register("billNumber")} className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Category</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</label>
                     <select
                       {...editForm.register("category")}
-                      className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                     >
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
@@ -2891,10 +2853,10 @@ export function FinancesView({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Payment Method</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Payment Method</label>
                     <select
                       {...editForm.register("paymentMethod")}
-                      className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                     >
                       <option value="CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cash</option>
                       <option value="PETTY_CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash</option>
@@ -2906,8 +2868,8 @@ export function FinancesView({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">Reason / Description</label>
-                  <Textarea {...editForm.register("reason")} className="text-xs" rows={2} />
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Reason / Description</label>
+                  <Textarea {...editForm.register("reason")} className="rounded-2xl p-4 bg-surface/40 border border-muted/30 text-xs sm:text-sm font-medium" rows={2} />
                 </div>
               </>
             ) : (
@@ -2915,21 +2877,21 @@ export function FinancesView({
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Date</label>
-                    <Input type="date" {...editForm.register("date")} className="h-9 text-xs" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</label>
+                    <Input type="date" {...editForm.register("date")} className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Bill Number</label>
-                    <Input {...editForm.register("billNumber")} className="h-9 text-xs font-mono" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bill Number</label>
+                    <Input {...editForm.register("billNumber")} className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Category</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</label>
                     <select
                       {...editForm.register("category")}
-                      className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                     >
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
@@ -2940,10 +2902,10 @@ export function FinancesView({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Payment Method</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Payment Method</label>
                     <select
                       {...editForm.register("paymentMethod")}
-                      className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                     >
                       <option value="CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cash</option>
                       <option value="PETTY_CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash</option>
@@ -2955,28 +2917,28 @@ export function FinancesView({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">Amount (LKR)</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Amount (LKR)</label>
                   <Input
                     type="number"
                     step="any"
                     {...editForm.register("amount", { valueAsNumber: true })}
-                    className="h-9 text-xs font-mono"
+                    className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs font-mono font-bold"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">Reason</label>
-                  <Textarea {...editForm.register("reason")} className="text-xs" rows={3} />
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Reason</label>
+                  <Textarea {...editForm.register("reason")} className="rounded-2xl p-4 bg-surface/40 border border-muted/30 text-xs sm:text-sm font-medium" rows={3} />
                 </div>
               </>
             )}
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(false)}>
+            <DialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={editForm.formState.isSubmitting}>
-                {editForm.formState.isSubmitting ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
+              <Button type="submit" disabled={editForm.formState.isSubmitting} className="h-11 px-7 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-xs shadow-md cursor-pointer">
+                {editForm.formState.isSubmitting ? <Loader2Icon className="size-3.5 animate-spin mr-1.5" /> : null}
                 Save Modifications
               </Button>
             </DialogFooter>
@@ -2986,24 +2948,30 @@ export function FinancesView({
 
       {/* DEBT REPAYMENT MODAL */}
       <Dialog open={debtRepayOpen} onOpenChange={setDebtRepayOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="glass-panel sm:max-w-lg max-h-[90vh] overflow-y-auto p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <HandCoinsIcon className="size-4 text-amber-600 dark:text-amber-400" />
-              Settle Customer Debt
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Collect outstanding debt payments from credit customers for {userShopName}. Instant auto-approval and running cash balance update.
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                <HandCoinsIcon className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-extrabold text-foreground tracking-tight">
+                  Settle Customer Debt
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Collect outstanding debt payments from credit customers for {userShopName}. Instant auto-approval and running cash balance update.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleDebtRepaymentSubmit} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                 <span>Customer Mobile Number *</span>
                 {searchingCustomer && (
-                  <span className="text-[10px] text-primary flex items-center gap-1 font-normal">
-                    <Loader2Icon className="size-3 animate-spin" /> Searching...
+                  <span className="text-[11px] text-primary flex items-center gap-1 font-semibold">
+                    <Loader2Icon className="size-3.5 animate-spin" /> Searching...
                   </span>
                 )}
               </label>
@@ -3015,29 +2983,29 @@ export function FinancesView({
                   setRepayPhone(val);
                   handleLookupCustomer(val, "REPAY");
                 }}
-                className="h-9 text-xs font-mono font-semibold"
+                className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-bold"
               />
             </div>
 
             {/* Found Customer Details */}
             {repayCustomer && (
-              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
+              <div className="p-5 rounded-3xl border border-amber-500/30 bg-amber-500/10 space-y-3.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-bold text-foreground block">{repayCustomer.name}</span>
-                    <span className="text-[11px] font-mono text-muted-foreground">{repayCustomer.phone}</span>
+                    <span className="text-sm font-bold text-foreground block">{repayCustomer.name}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{repayCustomer.phone}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Outstanding Debt</span>
-                    <span className="text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider block">Outstanding Debt</span>
+                    <span className="text-base font-extrabold font-mono text-amber-700 dark:text-amber-400">
                       LKR {Number(repayCustomer.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
 
                 {repayCustomer.shop && repayCustomer.shop._id !== userShopId && (
-                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-[11px] font-medium">
-                    <BuildingIcon className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs font-medium">
+                    <BuildingIcon className="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold">Cross-Branch Customer:</span> Belongs to{" "}
                       <strong>{repayCustomer.shop.name} ({repayCustomer.shop.code})</strong>. Cash will be collected into your drawer ({userShopName || "this shop"}), and debt will be settled for {repayCustomer.shop.name} (submitted for approval).
@@ -3049,9 +3017,9 @@ export function FinancesView({
                   <Button
                     type="button"
                     variant="outline"
-                    size="xs"
+                    size="sm"
                     onClick={() => setRepayAmount(repayCustomer.currentBalance)}
-                    className="text-[10px] h-6 px-2 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15"
+                    className="h-8 px-3 rounded-xl text-xs font-bold border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
                   >
                     Pay Full Amount (LKR {Number(repayCustomer.currentBalance).toLocaleString()})
                   </Button>
@@ -3060,7 +3028,7 @@ export function FinancesView({
             )}
 
             {!repayCustomer && repayPhone.trim().length >= 3 && !searchingCustomer && (
-              <div className="p-3 rounded-lg border border-dashed border-border bg-muted/20 text-center text-xs text-muted-foreground">
+              <div className="p-4 rounded-2xl border border-dashed border-muted/30 bg-surface/20 text-center text-xs text-muted-foreground">
                 No credit customer found with number &quot;{repayPhone}&quot; in this shop.
               </div>
             )}
@@ -3068,7 +3036,7 @@ export function FinancesView({
             {repayCustomer && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Payment Amount (LKR) *</span>
                     <span className="text-[10px] text-muted-foreground font-normal lowercase">(max: LKR {Number(repayCustomer.currentBalance).toLocaleString()})</span>
                   </label>
@@ -3080,21 +3048,21 @@ export function FinancesView({
                     value={repayAmount || ""}
                     onChange={(e) => setRepayAmount(Number(e.target.value) || 0)}
                     placeholder="0.00"
-                    className="h-9 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400"
+                    className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Payment Method
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-surface/40 p-1.5 rounded-2xl border border-muted/20">
                     <button
                       type="button"
                       onClick={() => setRepayMethod("CASH")}
-                      className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold border transition-all ${repayMethod === "CASH"
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-border text-muted-foreground hover:bg-muted"
+                      className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${repayMethod === "CASH"
+                        ? "bg-foreground text-background shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
                         }`}
                     >
                       Cash
@@ -3102,9 +3070,9 @@ export function FinancesView({
                     <button
                       type="button"
                       onClick={() => setRepayMethod("BANK_TRANSFER")}
-                      className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold border transition-all ${repayMethod === "BANK_TRANSFER"
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-border text-muted-foreground hover:bg-muted"
+                      className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${repayMethod === "BANK_TRANSFER"
+                        ? "bg-foreground text-background shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
                         }`}
                     >
                       Bank / Online
@@ -3113,18 +3081,18 @@ export function FinancesView({
                 </div>
 
                 {repayMethod === "BANK_TRANSFER" && (
-                  <div className="space-y-1.5 p-2.5 rounded-lg border border-border bg-muted/30">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">
+                  <div className="space-y-2 p-4 rounded-2xl border border-muted/30 bg-surface/40">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Target Bank Account
                     </label>
                     <select
                       value={repayBankId || ""}
                       onChange={(e) => setRepayBankId(e.target.value || null)}
-                      className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2 text-xs font-medium outline-none focus:border-ring"
+                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                     >
-                      <option value="">Select Bank Account (or Leave Empty)...</option>
+                      <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Select Bank Account (or Leave Empty)...</option>
                       {bankAccounts.map((b) => (
-                        <option key={b._id} value={b._id}>
+                        <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                           {b.bankName} - {b.accountNumber} ({b.accountName})
                         </option>
                       ))}
@@ -3133,33 +3101,32 @@ export function FinancesView({
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Note / Receipt Reference (Optional)
                   </label>
                   <Input
                     placeholder="e.g. Settle bill balance / receipt number..."
                     value={repayNote}
                     onChange={(e) => setRepayNote(e.target.value)}
-                    className="h-8 text-xs"
+                    className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-medium"
                   />
                 </div>
               </>
             )}
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setDebtRepayOpen(false)}>
+            <DialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setDebtRepayOpen(false)} className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer">
                 Cancel
               </Button>
               <Button
                 type="submit"
-                size="sm"
                 disabled={submittingRepay || !repayCustomer || repayAmount <= 0}
-                className="gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-11 px-7 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-xs shadow-md gap-2 cursor-pointer"
               >
                 {submittingRepay ? (
                   <Loader2Icon className="size-3.5 animate-spin" />
                 ) : (
-                  <CheckCircle2Icon className="size-3.5" />
+                  <CheckCircle2Icon className="size-4" />
                 )}
                 Collect &amp; Record Repayment
               </Button>
@@ -3170,27 +3137,33 @@ export function FinancesView({
 
       {/* ITEM WASTAGE & DEFECT LOGGING MODAL */}
       <Dialog open={wastageOpen} onOpenChange={setWastageOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="glass-panel sm:max-w-lg max-h-[90vh] overflow-y-auto p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
-              <AlertOctagonIcon className="size-5" />
-              <span>Record Item Wastage / Damage</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Log misprinted sheets, damaged stock, or defective inventory. Operational loss is computed strictly using base unit cost price without reducing the cash drawer.
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                <AlertOctagonIcon className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-extrabold text-foreground tracking-tight">
+                  Record Item Wastage / Damage
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Log misprinted sheets, damaged stock, or defective inventory. Operational loss is computed strictly using base unit cost price without reducing the cash drawer.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleWastageSubmit} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Item Code or Name *
               </label>
               <Input
                 placeholder="Search or enter item code (e.g. A4-COPY, SIM-01)..."
                 value={wastageItemLookup}
                 onChange={(e) => handleWastageItemCodeChange(e.target.value)}
-                className="h-9 text-xs font-mono"
+                className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-semibold"
                 list="wastage-items-datalist"
               />
               <datalist id="wastage-items-datalist">
@@ -3204,10 +3177,10 @@ export function FinancesView({
 
             {/* Matched Item Card */}
             {wastageMatchedItem && (
-              <div className="p-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs space-y-1">
+              <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-xs space-y-1.5 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground">{wastageMatchedItem.name}</span>
-                  <Badge variant="outline" className="font-mono text-[10px]">
+                  <span className="font-bold text-foreground text-sm">{wastageMatchedItem.name}</span>
+                  <Badge variant="outline" className="font-mono text-[11px] px-2.5 py-0.5 rounded-full border-rose-500/40 bg-surface/40">
                     {wastageMatchedItem.itemCode}
                   </Badge>
                 </div>
@@ -3218,7 +3191,7 @@ export function FinancesView({
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Wasted / Defective Quantity *
               </label>
               <Input
@@ -3228,7 +3201,7 @@ export function FinancesView({
                 placeholder="1"
                 value={wastageQuantity}
                 onChange={(e) => setWastageQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="h-9 text-xs font-mono font-semibold"
+                className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-bold"
               />
               <p className="text-[11px] text-muted-foreground">
                 e.g. 10 misprinted tutor sheets, 2 damaged covers
@@ -3236,7 +3209,7 @@ export function FinancesView({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase text-muted-foreground">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Reason / Defect Description *
               </label>
               <Textarea
@@ -3244,21 +3217,20 @@ export function FinancesView({
                 value={wastageReason}
                 onChange={(e) => setWastageReason(e.target.value)}
                 rows={3}
-                className="text-xs"
+                className="rounded-2xl p-4 bg-surface/40 border border-muted/30 text-xs sm:text-sm font-medium"
               />
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setWastageOpen(false)}>
+            <DialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setWastageOpen(false)} className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer">
                 Cancel
               </Button>
               <Button
                 type="submit"
-                size="sm"
                 disabled={submittingWastage || !wastageMatchedItem || wastageQuantity <= 0 || !wastageReason.trim()}
-                className="gap-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white"
+                className="h-11 px-7 rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold text-xs shadow-md gap-2 cursor-pointer"
               >
-                {submittingWastage ? <Loader2Icon className="size-3.5 animate-spin" /> : <AlertOctagonIcon className="size-3.5" />}
+                {submittingWastage ? <Loader2Icon className="size-3.5 animate-spin mr-1.5" /> : <AlertOctagonIcon className="size-4" />}
                 Record Loss
               </Button>
             </DialogFooter>
@@ -3268,15 +3240,15 @@ export function FinancesView({
 
       {/* UTILITY BILL PAYMENT MODAL */}
       <Dialog open={utilityBillOpen} onOpenChange={setUtilityBillOpen}>
-        <DialogContent className="sm:max-w-lg md:max-w-xl max-h-[92vh] overflow-y-auto">
-          <form onSubmit={handleUtilityBillSubmit} className="space-y-4">
+        <DialogContent className="glass-panel sm:max-w-xl md:max-w-2xl max-h-[92vh] overflow-y-auto p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl">
+          <form onSubmit={handleUtilityBillSubmit} className="space-y-5">
             <DialogHeader>
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <div className="flex items-center gap-3">
+                <div className="size-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
                   <ZapIcon className="size-5" />
                 </div>
                 <div>
-                  <DialogTitle className="text-base font-bold text-foreground">
+                  <DialogTitle className="text-xl font-extrabold text-foreground">
                     Utility Bill Payment
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground">
@@ -3287,51 +3259,51 @@ export function FinancesView({
             </DialogHeader>
 
             {/* Bill Type Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Select Bill Type *</label>
-              <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Bill Type *</label>
+              <div className="grid grid-cols-3 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setUtilityBillType("ELECTRICITY")}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${utilityBillType === "ELECTRICITY"
-                      ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold shadow-xs ring-1 ring-amber-500/30"
-                      : "border-border bg-card text-muted-foreground hover:bg-muted/60"
+                  className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${utilityBillType === "ELECTRICITY"
+                      ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold shadow-xs ring-1 ring-amber-500/30"
+                      : "border-muted/30 bg-surface/30 text-muted-foreground hover:bg-surface/50"
                     }`}
                 >
-                  <ZapIcon className="size-5 mb-1 text-amber-500" />
-                  <span className="text-xs font-semibold">Light Bill</span>
-                  <span className="text-[10px] opacity-75">Electricity (CEB/LECO)</span>
+                  <ZapIcon className="size-5 mb-1.5 text-amber-500" />
+                  <span className="text-xs font-bold">Light Bill</span>
+                  <span className="text-[10px] opacity-75 font-mono">Electricity (CEB/LECO)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setUtilityBillType("WATER")}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${utilityBillType === "WATER"
-                      ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-xs ring-1 ring-blue-500/30"
-                      : "border-border bg-card text-muted-foreground hover:bg-muted/60"
+                  className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${utilityBillType === "WATER"
+                      ? "border-blue-500/50 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold shadow-xs ring-1 ring-blue-500/30"
+                      : "border-muted/30 bg-surface/30 text-muted-foreground hover:bg-surface/50"
                     }`}
                 >
-                  <DropletIcon className="size-5 mb-1 text-blue-500" />
-                  <span className="text-xs font-semibold">Water Bill</span>
-                  <span className="text-[10px] opacity-75">Water Board (NWSDB)</span>
+                  <DropletIcon className="size-5 mb-1.5 text-blue-500" />
+                  <span className="text-xs font-bold">Water Bill</span>
+                  <span className="text-[10px] opacity-75 font-mono">Water Board (NWSDB)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setUtilityBillType("OTHER")}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${utilityBillType === "OTHER"
-                      ? "border-primary bg-primary/10 text-primary font-bold shadow-xs ring-1 ring-primary/30"
-                      : "border-border bg-card text-muted-foreground hover:bg-muted/60"
+                  className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${utilityBillType === "OTHER"
+                      ? "border-primary/50 bg-primary/10 text-primary font-bold shadow-xs ring-1 ring-primary/30"
+                      : "border-muted/30 bg-surface/30 text-muted-foreground hover:bg-surface/50"
                     }`}
                 >
-                  <ReceiptTextIcon className="size-5 mb-1 text-primary" />
-                  <span className="text-xs font-semibold">Other Bill</span>
-                  <span className="text-[10px] opacity-75">Custom Utility</span>
+                  <ReceiptTextIcon className="size-5 mb-1.5 text-primary" />
+                  <span className="text-xs font-bold">Other Bill</span>
+                  <span className="text-[10px] opacity-75 font-mono">Custom Utility</span>
                 </button>
               </div>
             </div>
 
             {/* Account Number */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Account / Bill Reference Number *
               </label>
               <Input
@@ -3344,7 +3316,7 @@ export function FinancesView({
                 }
                 value={utilityAccountNumber}
                 onChange={(e) => setUtilityAccountNumber(e.target.value)}
-                className="font-mono text-xs"
+                className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 font-mono text-xs sm:text-sm font-bold"
                 required
               />
             </div>
@@ -3352,32 +3324,32 @@ export function FinancesView({
             {/* Customer Name & Phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Customer Name (Optional)</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Customer Name (Optional)</label>
                 <Input
                   placeholder="e.g. Nimal Perera"
                   value={utilityCustomerName}
                   onChange={(e) => setUtilityCustomerName(e.target.value)}
-                  className="text-xs"
+                  className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-medium"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Customer Mobile (Optional)</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Customer Mobile (Optional)</label>
                 <Input
                   placeholder="e.g. 0771234567"
                   value={utilityCustomerPhone}
                   onChange={(e) => setUtilityCustomerPhone(e.target.value)}
-                  className="font-mono text-xs"
+                  className="h-11 rounded-2xl bg-surface/40 border-muted/30 font-mono text-xs sm:text-sm font-semibold"
                 />
               </div>
             </div>
 
             {/* Bill Amount */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Original Bill Amount (LKR) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
                   LKR
                 </span>
                 <Input
@@ -3390,7 +3362,7 @@ export function FinancesView({
                     const val = e.target.value === "" ? "" : Number(e.target.value);
                     setUtilityBillAmount(val);
                   }}
-                  className="pl-12 text-sm font-mono font-bold"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 pl-14 text-base font-mono font-bold"
                   required
                 />
               </div>
@@ -3398,13 +3370,12 @@ export function FinancesView({
 
             {/* DYNAMIC LIVE CALCULATION & BREAKDOWN CARD */}
             {Number(utilityBillAmount) > 0 && (
-              <div className="rounded-xl border border-border bg-muted/40 p-3.5 space-y-3">
-
+              <div className="rounded-3xl border border-muted/30 bg-surface/30 backdrop-blur-md p-4 space-y-3 shadow-xs">
                 {/* Totals Summary */}
-                <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-muted-foreground">Total to collect from customer: </span>
-                    <span className="font-mono font-bold text-foreground text-sm">
+                    <span className="text-muted-foreground font-medium">Total to collect from customer: </span>
+                    <span className="font-mono font-extrabold text-foreground text-base ml-1">
                       LKR {liveUtilityCharges.totalCustomerPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -3417,15 +3388,15 @@ export function FinancesView({
               <button
                 type="button"
                 onClick={() => setUtilityIsCustomCharges(!utilityIsCustomCharges)}
-                className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+                className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold cursor-pointer"
               >
                 <span>{utilityIsCustomCharges ? "Hide Custom Charges" : "Customize service charge or fee"}</span>
               </button>
 
               {utilityIsCustomCharges && (
-                <div className="grid grid-cols-2 gap-3 p-3 bg-muted/30 rounded-lg border border-border">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">Customer Charge (LKR)</label>
+                <div className="grid grid-cols-2 gap-3 p-4 bg-surface/40 rounded-2xl border border-muted/30">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Customer Charge (LKR)</label>
                     <Input
                       type="number"
                       step="any"
@@ -3435,11 +3406,11 @@ export function FinancesView({
                       onChange={(e) =>
                         setUtilityCustomServiceCharge(e.target.value === "" ? "" : Number(e.target.value))
                       }
-                      className="font-mono text-xs"
+                      className="h-11 rounded-2xl bg-surface/50 border-muted/30 font-mono text-xs font-bold"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">Provider Cost Fee (LKR)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Provider Cost Fee (LKR)</label>
                     <Input
                       type="number"
                       step="any"
@@ -3449,7 +3420,7 @@ export function FinancesView({
                       onChange={(e) =>
                         setUtilityCustomProviderFee(e.target.value === "" ? "" : Number(e.target.value))
                       }
-                      className="font-mono text-xs"
+                      className="h-11 rounded-2xl bg-surface/50 border-muted/30 font-mono text-xs font-bold"
                     />
                   </div>
                 </div>
@@ -3458,30 +3429,30 @@ export function FinancesView({
 
             {/* Payment Method */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Customer Payment Method</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Customer Payment Method</label>
               <select
                 value={utilityPaymentMethod}
                 onChange={(e: any) => setUtilityPaymentMethod(e.target.value)}
-                className="w-full h-9 rounded-md border border-border bg-card px-3 text-xs text-foreground font-medium outline-none focus:border-ring"
+                className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 px-3 text-xs text-foreground font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
               >
-                <option value="CASH">Cash (Adds to Shop Cash Drawer)</option>
-                <option value="BANK_TRANSFER">Bank Transfer (Deposits to Bank)</option>
-                <option value="ONLINE">Online / Card</option>
+                <option value="CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cash (Adds to Shop Cash Drawer)</option>
+                <option value="BANK_TRANSFER" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Bank Transfer (Deposits to Bank)</option>
+                <option value="ONLINE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Online / Card</option>
               </select>
             </div>
 
             {utilityPaymentMethod === "BANK_TRANSFER" && (
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">Deposit Bank Account *</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Deposit Bank Account *</label>
                 <select
                   value={utilityBankAccountId || ""}
                   onChange={(e) => setUtilityBankAccountId(e.target.value || null)}
-                  className="w-full h-9 rounded-md border border-border bg-card px-3 text-xs text-foreground font-medium outline-none focus:border-ring"
+                  className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 px-3 text-xs text-foreground font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
                   required
                 >
-                  <option value="">Select bank account...</option>
+                  <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Select bank account...</option>
                   {bankAccounts.map((b) => (
-                    <option key={b._id} value={b._id}>
+                    <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                       {b.bankName} - {b.accountNumber} ({b.accountName})
                     </option>
                   ))}
@@ -3491,39 +3462,38 @@ export function FinancesView({
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Optional Notes / Remarks</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Optional Notes / Remarks</label>
               <Input
                 placeholder="e.g. Customer receipt reference or note"
                 value={utilityNote}
                 onChange={(e) => setUtilityNote(e.target.value)}
-                className="text-xs"
+                className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-medium"
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={() => setUtilityBillOpen(false)}
                 disabled={submittingUtilityBill}
+                className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                size="sm"
                 disabled={submittingUtilityBill || !utilityAccountNumber.trim() || Number(utilityBillAmount) <= 0}
-                className="gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-11 px-7 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-xs shadow-md gap-2 cursor-pointer"
               >
                 {submittingUtilityBill ? (
                   <>
-                    <Loader2Icon className="size-3.5 animate-spin" />
+                    <Loader2Icon className="size-3.5 animate-spin mr-1" />
                     Recording Payment...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2Icon className="size-3.5" />
+                    <CheckCircle2Icon className="size-4" />
                     Record Bill Payment (LKR {liveUtilityCharges.totalCustomerPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })})
                   </>
                 )}
@@ -3535,17 +3505,22 @@ export function FinancesView({
 
       {/* DELETE CONFIRM ALERT */}
       <AlertDialog open={!!deleteConfirmRecord} onOpenChange={(open) => !open && setDeleteConfirmRecord(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-panel sm:max-w-md p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl space-y-4">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Pending Transaction?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-xl font-extrabold text-foreground">Delete Pending Transaction?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
               Are you sure you want to remove bill &quot;{deleteConfirmRecord?.billNumber}&quot; for LKR{" "}
               {Number(deleteConfirmRecord?.amount || 0).toLocaleString()}? This action will permanently remove it from the ledger.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSubmit} className="bg-destructive text-destructive-foreground hover:bg-destructive/80">
+          <AlertDialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
+            <AlertDialogCancel className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSubmit}
+              className="h-11 px-6 rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold text-xs shadow-md cursor-pointer"
+            >
               Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>

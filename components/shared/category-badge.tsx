@@ -12,28 +12,20 @@ export function CategoryBadge({
   colorToken = "chart-1",
   className,
 }: CategoryBadgeProps) {
-  const tokenClassMap: Record<string, string> = {
-    "chart-1": "bg-chart-1 text-foreground",
-    "chart-2": "bg-chart-2 text-foreground",
-    "chart-3": "bg-chart-3 text-foreground",
-    "chart-4": "bg-chart-4 text-foreground",
-    "chart-5": "bg-chart-5 text-foreground",
-  };
-
   const dotClassMap: Record<string, string> = {
-    "chart-1": "bg-chart-1",
-    "chart-2": "bg-chart-2",
-    "chart-3": "bg-chart-3",
-    "chart-4": "bg-chart-4",
-    "chart-5": "bg-chart-5",
+    "chart-1": "bg-primary",
+    "chart-2": "bg-muted-foreground",
+    "chart-3": "bg-foreground",
+    "chart-4": "bg-primary/70",
+    "chart-5": "bg-muted-foreground/70",
   };
 
-  const bgDot = dotClassMap[colorToken] || "bg-chart-1";
+  const bgDot = dotClassMap[colorToken] || "bg-primary";
 
   return (
     <Badge
       variant="outline"
-      className={`inline-flex items-center gap-1.5 font-medium border-border/80 bg-card/60 max-w-full min-w-0 shrink overflow-hidden ${className || ""}`}
+      className={`inline-flex items-center gap-2 font-medium border-muted/30 bg-surface/40 text-foreground px-3 py-1 rounded-full max-w-full min-w-0 shrink overflow-hidden text-sm ${className || ""}`}
       title={name}
     >
       <span className={`size-2 shrink-0 rounded-full ${bgDot}`} />
@@ -50,19 +42,19 @@ export function ColorSwatchSelector({
   onChange: (val: string) => void;
 }) {
   const swatches = [
-    { token: "chart-1", label: "Chart 1" },
-    { token: "chart-2", label: "Chart 2" },
-    { token: "chart-3", label: "Chart 3" },
-    { token: "chart-4", label: "Chart 4" },
-    { token: "chart-5", label: "Chart 5" },
+    { token: "chart-1", label: "Accent 1" },
+    { token: "chart-2", label: "Accent 2" },
+    { token: "chart-3", label: "Accent 3" },
+    { token: "chart-4", label: "Accent 4" },
+    { token: "chart-5", label: "Accent 5" },
   ];
 
   const swatchClasses: Record<string, string> = {
-    "chart-1": "bg-chart-1",
-    "chart-2": "bg-chart-2",
-    "chart-3": "bg-chart-3",
-    "chart-4": "bg-chart-4",
-    "chart-5": "bg-chart-5",
+    "chart-1": "bg-foreground",
+    "chart-2": "bg-muted-foreground",
+    "chart-3": "bg-primary",
+    "chart-4": "bg-surface border border-muted/40",
+    "chart-5": "bg-muted",
   };
 
   return (
@@ -74,12 +66,12 @@ export function ColorSwatchSelector({
             key={s.token}
             type="button"
             onClick={() => onChange(s.token)}
-            className={`group relative flex size-8 items-center justify-center rounded-full border-2 transition-all ${
-              isSelected ? "border-primary scale-110 shadow-sm" : "border-border hover:scale-105"
+            className={`group relative flex size-9 items-center justify-center rounded-full border-2 transition-all cursor-pointer ${
+              isSelected ? "border-foreground scale-105" : "border-transparent hover:border-muted/40"
             }`}
             title={s.label}
           >
-            <span className={`size-5 rounded-full ${swatchClasses[s.token]}`} />
+            <span className={`size-6 rounded-full ${swatchClasses[s.token]}`} />
           </button>
         );
       })}

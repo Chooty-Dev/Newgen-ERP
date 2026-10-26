@@ -10,19 +10,13 @@ import {
   ChangePasswordInput,
 } from "@/schemas/auth";
 import { updateProfileAction, changePasswordAction } from "@/actions/auth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  UserIcon,
-  LockIcon,
-  ShieldCheckIcon,
-  PhoneIcon,
-  MailIcon,
-  Loader2Icon,
-  BuildingIcon,
+  User,
+  Lock,
+  Loader2,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
@@ -39,7 +33,8 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ user }: SettingsViewProps) {
-  // Profile Form
+  const [activeTab, setActiveTab] = React.useState<"profile" | "security">("profile");
+
   const profileForm = useForm<UpdateProfileInput>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
@@ -49,7 +44,6 @@ export function SettingsView({ user }: SettingsViewProps) {
     },
   });
 
-  // Security Form
   const passwordForm = useForm<ChangePasswordInput>({
     resolver: zodResolver(changePasswordSchema),
     defaultValues: {
@@ -63,14 +57,13 @@ export function SettingsView({ user }: SettingsViewProps) {
     const res = await updateProfileAction(data);
     if (res.success) {
       toast.create({
-        title: "Profile updated",
-        description: "Your profile information has been saved.",
-        type: "success",
+        title: "Profile saved",
+        description: "Your personal details have been updated.",
       });
     } else {
       toast.create({
         title: "Update failed",
-        description: res.error || "Failed to update profile",
+        description: res.error || "Failed to update profile.",
         type: "error",
       });
     }
@@ -81,186 +74,203 @@ export function SettingsView({ user }: SettingsViewProps) {
     if (res.success) {
       toast.create({
         title: "Password changed",
-        description: "Your password has been securely updated.",
-        type: "success",
+        description: "Your security credentials have been updated.",
       });
       passwordForm.reset();
     } else {
       toast.create({
-        title: "Password update failed",
-        description: res.error || "Failed to change password",
+        title: "Failed",
+        description: res.error || "Failed to change password.",
         type: "error",
       });
     }
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Account & Security Settings
+    <div className="max-w-4xl space-y-10">
+      <div className="space-y-1">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+          Settings
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your personal identity credentials and access password
+        <p className="text-base text-muted-foreground">
+          Account Profile & Security Keys
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList className="bg-muted">
-          <TabsTrigger value="profile" className="gap-2 text-xs">
-            <UserIcon className="size-3.5" />
-            Profile Details
-          </TabsTrigger>
-          <TabsTrigger value="security" className="gap-2 text-xs">
-            <LockIcon className="size-3.5" />
-            Security & Password
-          </TabsTrigger>
-        </TabsList>
+      {/* Minimal Tabs */}
+      <div className="flex rounded-2xl bg-surface/40 p-1.5 border border-muted/20 w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab("profile")}
+          className={`px-6 py-3 rounded-xl text-base font-semibold transition-all flex items-center gap-2.5 ${
+            activeTab === "profile"
+              ? "bg-foreground text-background shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <User className="size-5" />
+          <span>Profile</span>
+        </button>
 
-        {/* Profile Tab */}
-        <TabsContent value="profile">
-          <Card className="border-border bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Personal Information</CardTitle>
-              <CardDescription>
-                Update your contact details and view organizational assignment
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)}>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Email</label>
-                    <div className="relative">
-                      <MailIcon className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                      <Input value={user.email || ""} disabled className="pl-9 h-9 text-xs bg-muted/40 font-mono" />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">Primary login identifier (read-only)</span>
-                  </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab("security")}
+          className={`px-6 py-3 rounded-xl text-base font-semibold transition-all flex items-center gap-2.5 ${
+            activeTab === "security"
+              ? "bg-foreground text-background shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Lock className="size-5" />
+          <span>Security</span>
+        </button>
+      </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Role</label>
-                    <div className="h-9 flex items-center">
-                      <Badge variant="outline" className="font-mono uppercase text-xs">
-                        <ShieldCheckIcon className="size-3 mr-1 text-primary" />
-                        {user.role}
-                      </Badge>
-                    </div>
-                  </div>
+      {activeTab === "profile" && (
+        <div className="glass-panel rounded-3xl p-8 sm:p-12 space-y-8 border-muted/20 shadow-lg">
+          <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Email
+                </label>
+                <Input
+                  value={user.email || ""}
+                  disabled
+                  className="h-14 rounded-2xl bg-surface/20 border-muted/20 font-mono text-base opacity-75"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Role
+                </label>
+                <div className="h-14 rounded-2xl bg-surface/20 border border-muted/20 px-4 flex items-center text-base font-bold text-stat-1 uppercase">
+                  {user.role} {user.shopName ? `• ${user.shopName}` : ""}
                 </div>
+              </div>
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">Full Name</label>
-                  <Input placeholder="John Doe" {...profileForm.register("name")} className="h-9 text-xs" />
-                  {profileForm.formState.errors.name && (
-                    <p className="text-xs text-destructive">{profileForm.formState.errors.name.message}</p>
-                  )}
-                </div>
+            <div className="space-y-2">
+              <label className="text-base font-semibold text-foreground">
+                Name
+              </label>
+              <Input
+                placeholder="Full Name"
+                {...profileForm.register("name")}
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base"
+              />
+              {profileForm.formState.errors.name && (
+                <p className="text-sm font-medium text-destructive">
+                  {profileForm.formState.errors.name.message}
+                </p>
+              )}
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">Phone Number</label>
-                  <div className="relative">
-                    <PhoneIcon className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input placeholder="+94 77 123 4567" {...profileForm.register("phone")} className="pl-9 h-9 text-xs" />
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <label className="text-base font-semibold text-foreground">
+                Phone
+              </label>
+              <Input
+                placeholder="+94 77 000 0000"
+                {...profileForm.register("phone")}
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base"
+              />
+            </div>
 
-                {user.shopName && (
-                  <div className="rounded-lg border border-border/80 bg-muted/20 p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <BuildingIcon className="size-4 text-primary" />
-                      <span className="text-xs font-medium">Assigned Operational Branch:</span>
-                    </div>
-                    <span className="text-xs font-bold text-foreground">{user.shopName}</span>
-                  </div>
+            <div className="pt-4 flex justify-end">
+              <Button
+                type="submit"
+                disabled={profileForm.formState.isSubmitting}
+                className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-base px-8 gap-3"
+              >
+                {profileForm.formState.isSubmitting ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Save Profile</span>
+                    <ArrowUpRight className="size-5" />
+                  </>
                 )}
-              </CardContent>
-              <CardFooter className="border-t border-border pt-4">
-                <Button type="submit" size="sm" disabled={profileForm.formState.isSubmitting}>
-                  {profileForm.formState.isSubmitting ? (
-                    <Loader2Icon className="size-3.5 animate-spin mr-1" />
-                  ) : null}
-                  Save Profile Changes
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
 
-        {/* Security Tab */}
-        <TabsContent value="security">
-          <Card className="border-border bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Change Password</CardTitle>
-              <CardDescription>
-                Ensure your account uses a strong password with symbols, numbers, and uppercase characters
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">
-                    Current Password
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    {...passwordForm.register("currentPassword")}
-                    className="h-9 text-xs"
-                  />
-                  {passwordForm.formState.errors.currentPassword && (
-                    <p className="text-xs text-destructive">
-                      {passwordForm.formState.errors.currentPassword.message}
-                    </p>
-                  )}
-                </div>
+      {activeTab === "security" && (
+        <div className="glass-panel rounded-3xl p-8 sm:p-12 space-y-8 border-muted/20 shadow-lg">
+          <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-base font-semibold text-foreground">
+                Current Password
+              </label>
+              <Input
+                type="password"
+                placeholder="••••••••••••"
+                {...passwordForm.register("currentPassword")}
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base"
+              />
+              {passwordForm.formState.errors.currentPassword && (
+                <p className="text-sm font-medium text-destructive">
+                  {passwordForm.formState.errors.currentPassword.message}
+                </p>
+              )}
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">
-                    New Password (min 8 chars, 1 uppercase, 1 number, 1 special)
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    {...passwordForm.register("newPassword")}
-                    className="h-9 text-xs"
-                  />
-                  {passwordForm.formState.errors.newPassword && (
-                    <p className="text-xs text-destructive">
-                      {passwordForm.formState.errors.newPassword.message}
-                    </p>
-                  )}
-                </div>
+            <div className="space-y-2">
+              <label className="text-base font-semibold text-foreground">
+                New Password
+              </label>
+              <Input
+                type="password"
+                placeholder="••••••••••••"
+                {...passwordForm.register("newPassword")}
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base"
+              />
+              {passwordForm.formState.errors.newPassword && (
+                <p className="text-sm font-medium text-destructive">
+                  {passwordForm.formState.errors.newPassword.message}
+                </p>
+              )}
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase text-muted-foreground">
-                    Confirm New Password
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    {...passwordForm.register("confirmPassword")}
-                    className="h-9 text-xs"
-                  />
-                  {passwordForm.formState.errors.confirmPassword && (
-                    <p className="text-xs text-destructive">
-                      {passwordForm.formState.errors.confirmPassword.message}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="border-t border-border pt-4">
-                <Button type="submit" size="sm" disabled={passwordForm.formState.isSubmitting}>
-                  {passwordForm.formState.isSubmitting ? (
-                    <Loader2Icon className="size-3.5 animate-spin mr-1" />
-                  ) : null}
-                  Update Password
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            <div className="space-y-2">
+              <label className="text-base font-semibold text-foreground">
+                Confirm New Password
+              </label>
+              <Input
+                type="password"
+                placeholder="••••••••••••"
+                {...passwordForm.register("confirmPassword")}
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base"
+              />
+              {passwordForm.formState.errors.confirmPassword && (
+                <p className="text-sm font-medium text-destructive">
+                  {passwordForm.formState.errors.confirmPassword.message}
+                </p>
+              )}
+            </div>
+
+            <div className="pt-4 flex justify-end">
+              <Button
+                type="submit"
+                disabled={passwordForm.formState.isSubmitting}
+                className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-base px-8 gap-3"
+              >
+                {passwordForm.formState.isSubmitting ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Update Password</span>
+                    <ArrowUpRight className="size-5" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

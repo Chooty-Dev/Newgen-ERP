@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import { getSummaryAnalyticsAction } from "@/actions/reports";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -24,19 +22,15 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import {
-  DownloadIcon,
-  RefreshCwIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
-  DollarSignIcon,
-  ClockIcon,
-  CheckCircle2Icon,
-  XCircleIcon,
-  ReceiptIcon,
-  FilterIcon,
+  Download,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  DollarSign,
+  Clock,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
@@ -113,15 +107,15 @@ export function SummaryReportsView({
         });
       } else {
         toast.create({
-          title: "Error loading reports",
-          description: res.error || "Failed to load summary",
+          title: "Error",
+          description: res.error || "Failed to load summary.",
           type: "error",
         });
       }
     } catch {
       toast.create({
-        title: "Connection error",
-        description: "Failed to connect to analytics server",
+        title: "Error",
+        description: "Failed to connect to analytics server.",
         type: "error",
       });
     } finally {
@@ -133,13 +127,11 @@ export function SummaryReportsView({
     fetchData();
   }, [fetchData]);
 
-  // Export to CSV Function
   const exportCSV = () => {
     if (!data.records.length) {
       toast.create({
-        title: "No records to export",
-        description: "There is no ledger data matching the active filters.",
-        type: "warning",
+        title: "Export empty",
+        description: "No ledger records matching active filters.",
       });
       return;
     }
@@ -181,7 +173,7 @@ export function SummaryReportsView({
     link.setAttribute("href", encodedUri);
     link.setAttribute(
       "download",
-      `Financial_Summary_${period}_${new Date().toISOString().split("T")[0]}.csv`
+      `Summary_${period}_${new Date().toISOString().split("T")[0]}.csv`
     );
     document.body.appendChild(link);
     link.click();
@@ -189,27 +181,25 @@ export function SummaryReportsView({
 
     toast.create({
       title: "Export complete",
-      description: `Downloaded ${data.records.length} records in CSV format.`,
-      type: "success",
+      description: `Exported ${data.records.length} records to CSV.`,
     });
   };
 
-  // Table Columns
   const columns: ColumnDef<any>[] = [
     {
       accessorKey: "date",
       header: "Date",
       cell: ({ row }) => {
         const d = new Date(row.original.date);
-        return <span className="font-mono text-xs">{d.toLocaleDateString()}</span>;
+        return <span className="font-mono text-base font-semibold">{d.toLocaleDateString()}</span>;
       },
     },
     {
       accessorKey: "shop.name",
       header: "Branch",
       cell: ({ row }) => (
-        <span className="font-medium text-xs text-foreground">
-          {row.original.shop?.name || "—"}
+        <span className="font-bold text-base text-foreground">
+          {row.original.shop?.name || "Global"}
         </span>
       ),
     },
@@ -217,7 +207,7 @@ export function SummaryReportsView({
       accessorKey: "billNumber",
       header: "Bill No",
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold text-primary">
+        <span className="font-mono text-base font-bold text-stat-1">
           {row.original.billNumber}
         </span>
       ),
@@ -226,31 +216,20 @@ export function SummaryReportsView({
       accessorKey: "category.name",
       header: "Category",
       cell: ({ row }) => (
-        <div className="max-w-[180px] min-w-0">
-          <CategoryBadge
-            name={row.original.category?.name || "Uncategorized"}
-            colorToken={row.original.category?.colorToken}
-          />
-        </div>
-      ),
-    },
-    {
-      accessorKey: "reason",
-      header: "Description",
-      cell: ({ row }) => (
-        <span className="truncate max-w-[200px] text-xs block text-muted-foreground">
-          {row.original.reason}
-        </span>
+        <CategoryBadge
+          name={row.original.category?.name || "General"}
+          colorToken={row.original.category?.colorToken}
+        />
       ),
     },
     {
       accessorKey: "amount",
-      header: "Amount (LKR)",
+      header: "Amount",
       cell: ({ row }) => {
         const isIncome = row.original.type === "INCOME";
         return (
-          <span className={`font-semibold text-xs font-mono ${isIncome ? "text-chart-2" : "text-foreground"}`}>
-            {isIncome ? "+" : "-"} {Number(row.original.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          <span className={`font-mono text-base font-bold ${isIncome ? "text-stat-1" : "text-foreground"}`}>
+            {isIncome ? "+" : "-"} LKR {Number(row.original.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         );
       },
@@ -260,83 +239,66 @@ export function SummaryReportsView({
       header: "Status",
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
-    {
-      accessorKey: "runningBalance",
-      header: "Balance (LKR)",
-      cell: ({ row }) => {
-        const bal = row.original.runningBalance || 0;
-        return (
-          <span className={`font-mono text-xs font-semibold ${bal >= 0 ? "text-chart-2" : "text-destructive"}`}>
-            {Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </span>
-        );
-      },
-    },
   ];
 
   const lineChartConfig: ChartConfig = {
     income: {
-      label: "Inflows (Income)",
-      color: "var(--chart-2)",
+      label: "Inflows",
+      color: "var(--stat-1)",
     },
     expense: {
-      label: "Outflows (Expense)",
-      color: "var(--chart-1)",
+      label: "Outflows",
+      color: "var(--stat-2)",
     },
   };
 
   const barChartConfig: ChartConfig = {
     income: {
       label: "Income",
-      color: "var(--chart-2)",
+      color: "var(--stat-1)",
     },
     expense: {
       label: "Expense",
-      color: "var(--chart-1)",
+      color: "var(--stat-2)",
     },
   };
 
   return (
-    <div className="space-y-6">
-      {/* Filter and Range Controls */}
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+    <div className="space-y-10">
+      {/* Range and Branch Selector Bar */}
+      <div className="glass-panel rounded-3xl p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 border-muted/20 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
-          <Tabs
-            value={period}
-            onValueChange={(val: any) => setPeriod(val)}
-            className="w-auto"
-          >
-            <TabsList className="bg-muted">
-              <TabsTrigger value="today" className="text-xs">Today</TabsTrigger>
-              <TabsTrigger value="week" className="text-xs">This Week</TabsTrigger>
-              <TabsTrigger value="month" className="text-xs">This Month</TabsTrigger>
-              <TabsTrigger value="custom" className="text-xs">Custom Range</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {/* Shop Selector */}
-          {userRole !== "STAFF" && (
-            <div className="flex items-center gap-2">
-              <FilterIcon className="size-4 text-muted-foreground" />
-              <select
-                value={selectedShop}
-                onChange={(e) => setSelectedShop(e.target.value)}
-                className="h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+          {/* Minimal Period Selector */}
+          <div className="flex rounded-2xl bg-surface/40 p-1.5 border border-muted/20">
+            {(["today", "week", "month", "custom"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-5 py-2.5 rounded-xl text-base font-semibold transition-all capitalize ${
+                  period === p
+                    ? "bg-foreground text-background shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                  All Branches & Shops
+                {p === "today" ? "Today" : p === "week" ? "Week" : p === "month" ? "Month" : "Custom"}
+              </button>
+            ))}
+          </div>
+
+          {/* Branch Filter */}
+          {userRole !== "STAFF" && (
+            <select
+              value={selectedShop}
+              onChange={(e) => setSelectedShop(e.target.value)}
+              className="h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-5 text-base font-semibold outline-none focus:border-foreground/50"
+            >
+              <option value="ALL">All Branches</option>
+              {initialShops.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} ({s.code})
                 </option>
-                {initialShops.map((s) => (
-                  <option
-                    key={s._id}
-                    value={s._id}
-                    className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100"
-                  >
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
-            </div>
+              ))}
+            </select>
           )}
 
           {period === "custom" && (
@@ -345,290 +307,217 @@ export function SummaryReportsView({
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-36 text-xs"
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base font-medium px-4"
               />
-              <span className="text-xs text-muted-foreground">to</span>
+              <span className="text-base text-muted-foreground font-semibold">to</span>
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 w-36 text-xs"
+                className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base font-medium px-4"
               />
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            size="sm"
             onClick={fetchData}
             disabled={loading}
-            className="gap-1.5 text-xs"
+            className="h-14 rounded-2xl bg-surface/40 hover:bg-surface/70 border border-muted/20 text-foreground text-base font-semibold px-5 gap-2.5"
           >
-            <RefreshCwIcon className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} />
+            <span>Sync</span>
           </Button>
+
           <Button
-            variant="default"
-            size="sm"
             onClick={exportCSV}
-            className="gap-1.5 text-xs"
+            className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 text-base font-semibold px-6 gap-2.5"
           >
-            <DownloadIcon className="size-3.5" />
-            Export CSV
+            <Download className="size-5" />
+            <span>CSV</span>
           </Button>
         </div>
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Transactions">
-            Transactions
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
+            <span>Net Balance</span>
+            <DollarSign className="size-6 text-foreground" />
           </div>
-          <div className="text-xl font-bold mt-1 text-foreground truncate font-mono" title={String(data.kpis.totalTransactions)}>
-            {data.kpis.totalTransactions}
+          <div className="text-3xl font-bold font-mono text-stat-2">
+            LKR {data.kpis.netBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Recorded in range">
-            Recorded in range
-          </div>
-        </Card>
+        </div>
 
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Total Inflow">
-            Total Inflow
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
+            <span>Inflows</span>
+            <TrendingUp className="size-6 text-foreground" />
           </div>
-          <div className="text-xl font-bold mt-1 text-chart-2 truncate font-mono" title={`LKR ${data.kpis.totalIncome.toLocaleString()}`}>
-            LKR {data.kpis.totalIncome.toLocaleString()}
+          <div className="text-3xl font-bold font-mono text-stat-1">
+            LKR {data.kpis.totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Collections & fees">
-            Collections & fees
-          </div>
-        </Card>
+        </div>
 
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Total Outflow">
-            Total Outflow
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
+            <span>Outflows</span>
+            <TrendingDown className="size-6 text-foreground" />
           </div>
-          <div className="text-xl font-bold mt-1 text-foreground truncate font-mono" title={`LKR ${data.kpis.totalExpense.toLocaleString()}`}>
-            LKR {data.kpis.totalExpense.toLocaleString()}
+          <div className="text-3xl font-bold font-mono text-foreground">
+            LKR {data.kpis.totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Operational expense">
-            Operational expense
-          </div>
-        </Card>
+        </div>
 
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Net Period Flow">
-            Net Period Flow
+        <div className="glass-panel rounded-3xl p-8 space-y-3 border-muted/20">
+          <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
+            <span>Pending Review</span>
+            <Clock className="size-6 text-foreground" />
           </div>
-          <div
-            className={`text-xl font-bold mt-1 truncate font-mono ${data.kpis.netBalance >= 0 ? "text-chart-2" : "text-destructive"}`}
-            title={`LKR ${data.kpis.netBalance.toLocaleString()}`}
-          >
-            LKR {data.kpis.netBalance.toLocaleString()}
-          </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Income minus Expense">
-            Income minus Expense
-          </div>
-        </Card>
-
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Pending Approvals">
-            Pending
-          </div>
-          <div className="text-xl font-bold mt-1 text-warning truncate font-mono" title={String(data.kpis.pendingApprovals)}>
+          <div className="text-3xl font-bold font-mono text-foreground">
             {data.kpis.pendingApprovals}
           </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Awaiting verifier">
-            Awaiting verifier
-          </div>
-        </Card>
-
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Approved Value">
-            Approved Value
-          </div>
-          <div className="text-xl font-bold mt-1 text-chart-2 truncate font-mono" title={`LKR ${data.kpis.approvedAmount.toLocaleString()}`}>
-            LKR {data.kpis.approvedAmount.toLocaleString()}
-          </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Finalized capital">
-            Finalized capital
-          </div>
-        </Card>
-
-        <Card className="border-border bg-card shadow-sm p-3.5 col-span-1 min-w-0 overflow-hidden">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Rejected Value">
-            Rejected Value
-          </div>
-          <div className="text-xl font-bold mt-1 text-destructive truncate font-mono" title={`LKR ${data.kpis.rejectedAmount.toLocaleString()}`}>
-            LKR {data.kpis.rejectedAmount.toLocaleString()}
-          </div>
-          <div className="text-[10px] text-muted-foreground truncate" title="Declined requests">
-            Declined requests
-          </div>
-        </Card>
+        </div>
       </div>
 
       {/* Charts Section */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Trend of Expense vs Income */}
-        <Card className="border-border bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Cash Flow Trajectory</CardTitle>
-            <CardDescription>
-              Inflows vs Outflows daily chronological progression
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-72">
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div className="glass-panel rounded-3xl p-8 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+          <h2 className="text-2xl font-bold text-foreground">
+            Cash Flow Trajectory
+          </h2>
+          <div className="h-80 w-full pt-4">
             {data.timelineData.length > 0 ? (
               <ChartContainer config={lineChartConfig} className="h-full w-full">
                 <LineChart data={data.timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-xs fill-muted-foreground"
                     tickFormatter={(val) => val.slice(5)}
                   />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-xs fill-muted-foreground"
                     tickFormatter={(val) => `${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line
                     type="monotone"
                     dataKey="income"
-                    stroke="var(--color-chart-2)"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "var(--color-chart-2)" }}
+                    stroke="#819A91"
+                    strokeWidth={3}
+                    dot={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="expense"
-                    stroke="var(--color-chart-1)"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "var(--color-chart-1)" }}
+                    stroke="#D6BD98"
+                    strokeWidth={3}
+                    dot={false}
                   />
                 </LineChart>
               </ChartContainer>
             ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                No time-series data available for selected criteria
+              <div className="flex h-full items-center justify-center text-base text-muted-foreground">
+                No time-series data available.
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Branch-Wise Comparison */}
-        <Card className="border-border bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Branch Performance Comparison</CardTitle>
-            <CardDescription>
-              Aggregated income and expenditure breakdown per shop
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-72">
+        <div className="glass-panel rounded-3xl p-8 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+          <h2 className="text-2xl font-bold text-foreground">
+            Branch Comparison
+          </h2>
+          <div className="h-80 w-full pt-4">
             {data.shopComparisonData.length > 0 ? (
               <ChartContainer config={barChartConfig} className="h-full w-full">
                 <BarChart data={data.shopComparisonData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" />
                   <XAxis
                     dataKey="code"
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-xs fill-muted-foreground"
                   />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-xs fill-muted-foreground"
                     tickFormatter={(val) => `${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="income" fill="var(--color-chart-2)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="income" fill="#819A91" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="expense" fill="#D6BD98" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ChartContainer>
             ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                No branch data available for selected criteria
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Category Spending Breakdown */}
-      <Card className="border-border bg-card shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Expense & Income by Category</CardTitle>
-          <CardDescription>Breakdown of organizational volume across managed categories</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {data.categoryBreakdownData.map((cat) => (
-              <div
-                key={cat.category}
-                className="flex flex-col justify-between rounded-xl border border-border/70 bg-card p-3.5 shadow-sm min-w-0 overflow-hidden"
-              >
-                <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <CategoryBadge name={cat.category} colorToken={cat.colorToken} className="max-w-full" />
-                  </div>
-                  <span
-                    className={`shrink-0 text-[10px] uppercase font-mono px-2 py-0.5 rounded font-semibold border ${
-                      cat.type === "INCOME"
-                        ? "bg-chart-2/15 text-chart-2 border-chart-2/30"
-                        : "bg-muted text-muted-foreground border-border/60"
-                    }`}
-                  >
-                    {cat.type}
-                  </span>
-                </div>
-                <div
-                  className="text-base font-bold text-foreground font-mono truncate"
-                  title={`LKR ${cat.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                >
-                  LKR {cat.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            ))}
-            {data.categoryBreakdownData.length === 0 && (
-              <div className="col-span-full py-8 text-center text-xs text-muted-foreground">
-                No category transactions recorded in this period.
+              <div className="flex h-full items-center justify-center text-base text-muted-foreground">
+                No branch comparison data available.
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Detailed Exportable Ledger Table */}
-      <Card className="border-border bg-card shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Period Ledger Transactions</CardTitle>
-          <CardDescription>
-            Comprehensive tabular ledger reflecting all approved, pending, and rejected entries
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={columns}
-            data={data.records}
-            searchKey="billNumber"
-            searchPlaceholder="Search by bill number..."
-            loading={loading}
-          />
-        </CardContent>
-      </Card>
+      {/* Category Breakdown */}
+      <div className="glass-panel rounded-3xl p-8 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+        <h2 className="text-2xl font-bold text-foreground">
+          Categories
+        </h2>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          {data.categoryBreakdownData.map((cat) => (
+            <div
+              key={cat.category}
+              className="rounded-2xl bg-surface/30 border border-muted/20 p-6 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-base font-bold text-foreground">
+                  {cat.category}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {cat.type}
+                </span>
+              </div>
+              <div className="text-2xl font-bold font-mono text-stat-1">
+                LKR {cat.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          ))}
+
+          {data.categoryBreakdownData.length === 0 && (
+            <div className="col-span-full py-12 text-center text-base text-muted-foreground">
+              No category volume recorded.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tabular Ledger */}
+      <div className="glass-panel rounded-3xl p-8 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+        <h2 className="text-2xl font-bold text-foreground">
+          Ledger Records
+        </h2>
+        <DataTable
+          columns={columns}
+          data={data.records}
+          searchKey="billNumber"
+          searchPlaceholder="Search bill number..."
+          loading={loading}
+        />
+      </div>
     </div>
   );
 }

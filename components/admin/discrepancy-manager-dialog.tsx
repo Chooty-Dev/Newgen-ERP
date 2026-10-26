@@ -11,8 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getShopDiscrepancyAuditAction,
@@ -33,7 +31,6 @@ import {
   BanknoteIcon,
   ArrowDownRightIcon,
   ArrowUpRightIcon,
-  HelpCircleIcon,
   SlidersHorizontalIcon,
   InfoIcon,
   SparklesIcon,
@@ -63,7 +60,6 @@ export function DiscrepancyManagerDialog({
   const [selectedDate, setSelectedDate] = React.useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [lang, setLang] = React.useState<"si" | "en">("si");
   const [actionLoading, setActionLoading] = React.useState(false);
 
   // Sub-modal states
@@ -96,17 +92,20 @@ export function DiscrepancyManagerDialog({
         const res = await getShopDiscrepancyAuditAction(shopId, parsedCount, dateToUse);
         if (res.success && res.audit) {
           setAuditData(res.audit);
-          // Only prefill input if currently empty (e.g. initial dialog open)
           setCountedCashInput((prev) =>
             prev.trim() === "" ? String(res.audit.expectedPhysicalDrawerCash) : prev
           );
           setFloatAmountInput(res.audit.defaultConfiguredFloat || 4000);
         } else {
-          toast.error(res.error || "Failed to load discrepancy audit data.");
+          toast.create({
+            title: "Error",
+            description: res.error || "Failed to load discrepancy audit data.",
+            type: "error",
+          });
         }
       } catch (err) {
         console.error("Discrepancy fetch error:", err);
-        toast.error("Failed to connect to server.");
+        toast.create({ title: "Error", description: "Failed to connect to server.", type: "error" });
       } finally {
         setLoading(false);
       }
@@ -130,9 +129,11 @@ export function DiscrepancyManagerDialog({
     if (trimmed !== "" && !isNaN(parsed)) {
       fetchAudit(parsed);
     } else {
-      toast.error(
-        lang === "si" ? "කරුණාකර නිවැරදි මුදලක් ඇතුළත් කරන්න." : "Please enter a valid cash amount."
-      );
+      toast.create({
+        title: "Invalid Input",
+        description: "Please enter a valid cash amount.",
+        type: "error",
+      });
     }
   };
 
@@ -150,7 +151,11 @@ export function DiscrepancyManagerDialog({
   const handleSubmitFloat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (floatAmountInput < 0) {
-      toast.error("Opening float cannot be negative.");
+      toast.create({
+        title: "Validation Error",
+        description: "Opening float cannot be negative.",
+        type: "error",
+      });
       return;
     }
     setActionLoading(true);
@@ -162,15 +167,26 @@ export function DiscrepancyManagerDialog({
         note: floatNoteInput,
       });
       if (res.success) {
-        toast.success(res.message || "Opening float saved successfully.");
+        toast.create({
+          title: "Float Saved",
+          description: res.message || "Opening float saved successfully.",
+        });
         setSubModal("NONE");
         fetchAudit();
         onUpdated?.();
       } else {
-        toast.error(res.error || "Failed to save opening float.");
+        toast.create({
+          title: "Save Failed",
+          description: res.error || "Failed to save opening float.",
+          type: "error",
+        });
       }
     } catch {
-      toast.error("Server error while saving float.");
+      toast.create({
+        title: "Server Error",
+        description: "Server error while saving float.",
+        type: "error",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -188,7 +204,7 @@ export function DiscrepancyManagerDialog({
     setAdjTypeInput(type);
     setAdjReasonInput(
       type === "SURPLUS"
-        ? "Till counter surplus / unrecorded walk-in printing reconciliation"
+        ? "Till counter surplus / unrecorded walk-in reconciliation"
         : "Till cash shortage reconciliation"
     );
     setSubModal("RECORD_ADJUSTMENT");
@@ -197,7 +213,11 @@ export function DiscrepancyManagerDialog({
   const handleSubmitAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (adjAmountInput <= 0) {
-      toast.error("Adjustment amount must be greater than zero.");
+      toast.create({
+        title: "Validation Error",
+        description: "Adjustment amount must be greater than zero.",
+        type: "error",
+      });
       return;
     }
     setActionLoading(true);
@@ -210,15 +230,26 @@ export function DiscrepancyManagerDialog({
         date: selectedDate,
       });
       if (res.success) {
-        toast.success(res.message || "Adjustment recorded successfully.");
+        toast.create({
+          title: "Adjustment Recorded",
+          description: res.message || "Adjustment recorded successfully.",
+        });
         setSubModal("NONE");
         fetchAudit();
         onUpdated?.();
       } else {
-        toast.error(res.error || "Failed to record adjustment.");
+        toast.create({
+          title: "Operation Failed",
+          description: res.error || "Failed to record adjustment.",
+          type: "error",
+        });
       }
     } catch {
-      toast.error("Server error recording adjustment.");
+      toast.create({
+        title: "Error",
+        description: "Server error recording adjustment.",
+        type: "error",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -229,14 +260,25 @@ export function DiscrepancyManagerDialog({
     try {
       const res = await recalculateAndSyncShopCashAction(shopId);
       if (res.success) {
-        toast.success("Ledger running balance resynchronized.");
+        toast.create({
+          title: "Ledger Synchronized",
+          description: "Ledger running balance resynchronized.",
+        });
         fetchAudit();
         onUpdated?.();
       } else {
-        toast.error(res.error || "Failed to resync ledger.");
+        toast.create({
+          title: "Sync Failed",
+          description: res.error || "Failed to resync ledger.",
+          type: "error",
+        });
       }
     } catch {
-      toast.error("Error resyncing ledger.");
+      toast.create({
+        title: "Error",
+        description: "Error resyncing ledger.",
+        type: "error",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -245,161 +287,101 @@ export function DiscrepancyManagerDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-5 sm:p-6">
-          <DialogHeader className="border-b border-border pb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  <ScaleIcon className="size-6" />
-                </div>
+        <DialogContent className="glass-panel w-full sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-6 sm:p-10 rounded-3xl border-muted/30">
+          <DialogHeader className="border-b border-muted/20 pb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <ScaleIcon className="size-8 text-foreground shrink-0" />
                 <div>
-                  <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                    <span>Discrepancy Management System</span>
-                    <Badge variant="outline" className="font-mono text-xs uppercase bg-primary/5">
+                  <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+                    <span>Discrepancy Diagnostics</span>
+                    <span className="font-mono text-sm px-2.5 py-0.5 rounded-full bg-surface/50 border border-muted/30 text-foreground font-semibold">
                       {shopCode}
-                    </Badge>
+                    </span>
                   </DialogTitle>
-                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                    {lang === "si"
-                      ? `${shopName} මුදල් ලාච්චුවේ ශේෂය, ලැබීම්, ආරම්භක මුදල් සහ වෙනස්කම් ස්වයංක්‍රීයව පරීක්ෂා කර සත්‍යාපනය කරන්න.`
-                      : `Automated cash drawer reconciliation, float verification & discrepancy diagnostic for ${shopName}.`}
+                  <DialogDescription className="text-sm text-muted-foreground mt-1">
+                    Automated cash drawer reconciliation, float verification, and discrepancy diagnostics for {shopName}.
                   </DialogDescription>
                 </div>
               </div>
 
-              {/* Language Switcher & Date Picker */}
-              <div className="flex items-center gap-2">
+              {/* Date Filter Picker */}
+              <div className="flex items-center gap-3">
                 <Input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="h-8 text-xs font-mono w-[130px]"
+                  className="h-12 text-sm font-mono w-[150px] rounded-2xl bg-surface/40 border-muted/30"
                 />
-                <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setLang("si")}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                      lang === "si"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    සිංහල
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLang("en")}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                      lang === "en"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    English
-                  </button>
-                </div>
               </div>
             </div>
           </DialogHeader>
 
           {loading ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-              <Loader2Icon className="size-8 animate-spin text-primary" />
-              <p className="text-xs">
-                {lang === "si"
-                  ? "මුදල් ලාච්චුවේ ගනුදෙනු හා ශේෂයන් විශ්ලේෂණය කරමින් පවතී..."
-                  : "Analyzing till transactions & calculating physical balances..."}
+            <div className="py-20 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+              <Loader2Icon className="size-8 animate-spin" />
+              <p className="text-sm font-medium">
+                Analyzing till transactions and calculating physical balances...
               </p>
             </div>
           ) : auditData ? (
-            <div className="space-y-6 pt-2">
+            <div className="space-y-8 pt-4">
               {/* Top Banner: Real-Time Cash Drawer Status */}
-              <div
-                className={`p-4 rounded-2xl border transition-all ${
-                  auditData.varianceStatus === "BALANCED"
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-200"
-                    : auditData.varianceStatus === "SURPLUS"
-                    ? "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
-                    : "bg-rose-500/10 border-rose-500/30 text-rose-950 dark:text-rose-200"
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3">
+              <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                  <div className="flex items-start gap-4">
                     {auditData.varianceStatus === "BALANCED" ? (
-                      <CheckCircle2Icon className="size-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <CheckCircle2Icon className="size-8 text-foreground shrink-0 mt-0.5" />
                     ) : auditData.varianceStatus === "SURPLUS" ? (
-                      <AlertTriangleIcon className="size-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <AlertTriangleIcon className="size-8 text-foreground shrink-0 mt-0.5" />
                     ) : (
-                      <XCircleIcon className="size-6 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                      <XCircleIcon className="size-8 text-destructive shrink-0 mt-0.5" />
                     )}
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-base">
-                          {lang === "si"
-                            ? auditData.varianceStatus === "BALANCED"
-                              ? "මුදල් ලාච්චුව 100% ක් සමබරයි"
-                              : auditData.varianceStatus === "SURPLUS"
-                              ? `ලාච්චුවේ අතිරික්තයක් ඇත (+LKR ${auditData.variance.toLocaleString()})`
-                              : `ලාච්චුවේ හිඟ මුදලක් ඇත (-LKR ${Math.abs(auditData.variance).toLocaleString()})`
-                            : auditData.varianceStatus === "BALANCED"
+                      <div className="flex items-center gap-3">
+                        <h4 className="font-bold text-xl text-foreground">
+                          {auditData.varianceStatus === "BALANCED"
                             ? "Cash Drawer 100% Balanced"
                             : auditData.varianceStatus === "SURPLUS"
                             ? `Cash Surplus Detected (+LKR ${auditData.variance.toLocaleString()})`
                             : `Cash Shortage Detected (-LKR ${Math.abs(auditData.variance).toLocaleString()})`}
                         </h4>
-                        <Badge
-                          className={`text-[10px] px-2 py-0 uppercase font-semibold ${
-                            auditData.varianceStatus === "BALANCED"
-                              ? "bg-emerald-600 text-white"
-                              : auditData.varianceStatus === "SURPLUS"
-                              ? "bg-amber-600 text-white"
-                              : "bg-rose-600 text-white"
-                          }`}
-                        >
+                        <span className="text-xs px-3 py-1 rounded-full uppercase font-bold tracking-wider bg-surface/60 border border-muted/30 text-foreground">
                           {auditData.varianceStatus}
-                        </Badge>
+                        </span>
                       </div>
 
                       {/* Plain-Language Explanation */}
-                      <p className="text-xs mt-1.5 leading-relaxed font-medium opacity-90 max-w-2xl">
-                        {lang === "si"
-                          ? auditData.plainLanguageSummary.si
-                          : auditData.plainLanguageSummary.en}
+                      <p className="text-sm mt-2 leading-relaxed text-muted-foreground font-medium max-w-2xl">
+                        {auditData.plainLanguageSummary.en}
                       </p>
 
                       {/* Action Advice */}
-                      <p className="text-[11px] mt-1 text-primary dark:text-primary-foreground font-semibold flex items-center gap-1">
-                        <SparklesIcon className="size-3.5 shrink-0" />
-                        <span>
-                          {lang === "si"
-                            ? auditData.plainLanguageSummary.actionAdviceSi
-                            : auditData.plainLanguageSummary.actionAdviceEn}
-                        </span>
+                      <p className="text-sm mt-2 text-foreground font-semibold flex items-center gap-2">
+                        <SparklesIcon className="size-4 shrink-0" />
+                        <span>{auditData.plainLanguageSummary.actionAdviceEn}</span>
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex sm:flex-col gap-2 shrink-0">
+                  <div className="flex sm:flex-col gap-3 shrink-0">
                     <Button
-                      size="sm"
                       variant="outline"
                       onClick={() => fetchAudit()}
                       disabled={actionLoading}
-                      className="text-xs gap-1.5 bg-background shadow-xs"
+                      className="h-12 rounded-2xl px-5 text-sm font-semibold gap-2 border-muted/30 bg-surface/30 hover:bg-surface/60"
                     >
-                      <RefreshCwIcon className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-                      <span>{lang === "si" ? "යාවත්කාලීන" : "Refresh"}</span>
+                      <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
+                      <span>Refresh</span>
                     </Button>
                     {auditData.variance !== 0 && (
                       <Button
-                        size="sm"
                         onClick={() => handleOpenRecordAdj()}
                         disabled={actionLoading}
-                        className="text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                        className="h-12 rounded-2xl px-5 text-sm font-semibold gap-2 bg-foreground text-background hover:opacity-90"
                       >
-                        <SlidersHorizontalIcon className="size-3.5" />
-                        <span>{lang === "si" ? "සමබර කරන්න" : "Reconcile"}</span>
+                        <SlidersHorizontalIcon className="size-4" />
+                        <span>Reconcile</span>
                       </Button>
                     )}
                   </div>
@@ -407,24 +389,26 @@ export function DiscrepancyManagerDialog({
               </div>
 
               {/* 3 Core Calculator Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* 1. Expected Physical Cash in Drawer */}
-                <Card className="p-4 bg-card border-border shadow-xs">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider">
-                      {lang === "si" ? "ලාච්චුවේ තිබිය යුතු මුදල" : "Expected in Drawer"}
-                    </span>
-                    <BanknoteIcon className="size-4 text-primary" />
+                <div className="glass-card p-6 rounded-3xl border border-muted/30 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-semibold uppercase tracking-wider">
+                        Expected in Drawer
+                      </span>
+                      <BanknoteIcon className="size-5 text-foreground" />
+                    </div>
+                    <div className="text-3xl font-extrabold font-mono mt-3 text-foreground">
+                      LKR{" "}
+                      {auditData.expectedPhysicalDrawerCash.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                    </div>
                   </div>
-                  <div className="text-2xl font-black font-mono mt-1 text-foreground">
-                    LKR{" "}
-                    {auditData.expectedPhysicalDrawerCash.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-1 flex flex-col gap-0.5">
+                  <div className="text-xs text-muted-foreground mt-4 pt-3 border-t border-muted/20 flex flex-col gap-1">
                     <span>
-                      {lang === "si" ? "ආරම්භක මුදල (Float)" : "Opening Float"}:{" "}
+                      Opening Float:{" "}
                       <strong className="text-foreground">
                         LKR{" "}
                         {(auditData.hasOpeningFloatRecord
@@ -433,31 +417,39 @@ export function DiscrepancyManagerDialog({
                         ).toLocaleString()}
                       </strong>{" "}
                       {!auditData.hasOpeningFloatRecord && (
-                        <span className="text-amber-600 font-semibold">(Unrecorded)</span>
+                        <span className="text-muted-foreground font-semibold">(Unrecorded)</span>
                       )}
                     </span>
+                    {auditData.previousUnsettledCash > 0 && (
+                      <span>
+                        Prior Unsettled Cash:{" "}
+                        <strong className="text-foreground">
+                          + LKR {auditData.previousUnsettledCash.toLocaleString()}
+                        </strong>
+                      </span>
+                    )}
                     <span>
-                      {lang === "si" ? "දවසේ ලැබීම් (Net Cash)" : "Today's Collections"}:{" "}
+                      Today Collections:{" "}
                       <strong className="text-foreground">
-                        LKR {auditData.todayNetCollections.toLocaleString()}
+                        + LKR {auditData.todayNetCollections.toLocaleString()}
                       </strong>
                     </span>
                   </div>
-                </Card>
+                </div>
 
                 {/* 2. Physical Counted Cash (Interactive Input) */}
-                <Card className="p-4 bg-card border-primary/40 shadow-xs relative ring-1 ring-primary/20 flex flex-col justify-between">
+                <div className="glass-card p-6 rounded-3xl border border-muted/30 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-                        {lang === "si" ? "ගණන් කළ මුදල (Counted Cash)" : "Physical Counted Cash"}
+                      <span className="text-xs font-semibold uppercase tracking-wider">
+                        Counted Drawer Cash
                       </span>
-                      <CoinsIcon className="size-4 text-primary" />
+                      <CoinsIcon className="size-5 text-foreground" />
                     </div>
 
-                    <form onSubmit={handleCheckCountedCash} className="mt-2 flex items-center gap-2">
+                    <form onSubmit={handleCheckCountedCash} className="mt-3 flex items-center gap-2">
                       <div className="relative flex-1">
-                        <span className="absolute left-2.5 top-2 text-xs font-mono font-bold text-muted-foreground">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-muted-foreground">
                           LKR
                         </span>
                         <Input
@@ -472,171 +464,130 @@ export function DiscrepancyManagerDialog({
                               handleCheckCountedCash();
                             }
                           }}
-                          className="pl-12 h-9 text-base font-bold font-mono text-foreground"
+                          className="pl-12 h-14 text-base font-bold font-mono text-foreground rounded-2xl bg-surface/40 border-muted/30"
                         />
                       </div>
                       <Button
                         type="submit"
-                        size="sm"
                         disabled={loading || countedCashInput.trim() === ""}
-                        className="h-9 px-3.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                        className="h-14 px-5 rounded-2xl bg-foreground text-background hover:opacity-90 font-bold text-sm gap-2 shrink-0"
                       >
                         {loading ? (
-                          <Loader2Icon className="size-3.5 animate-spin" />
+                          <Loader2Icon className="size-4 animate-spin" />
                         ) : (
-                          <CheckCircle2Icon className="size-3.5" />
+                          <CheckCircle2Icon className="size-4" />
                         )}
-                        <span>{lang === "si" ? "Check" : "Check"}</span>
+                        <span>Check</span>
                       </Button>
                     </form>
                   </div>
 
                   {/* Presets */}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-border/50">
-                    <span className="text-[10px] text-muted-foreground">Presets:</span>
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-muted/20">
+                    <span className="text-xs text-muted-foreground">Presets:</span>
                     <button
                       type="button"
                       onClick={() => handleApplyPreset(auditData.expectedPhysicalDrawerCash)}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-mono transition-colors"
+                      className="text-xs px-3 py-1 rounded-xl bg-surface/50 hover:bg-surface/80 border border-muted/20 text-foreground font-mono transition-colors cursor-pointer"
                     >
                       Expected ({auditData.expectedPhysicalDrawerCash.toLocaleString()})
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyPreset(25020)}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-mono transition-colors"
-                    >
-                      Oct 13 (25,020)
-                    </button>
                   </div>
-                </Card>
+                </div>
 
                 {/* 3. Variance / Discrepancy Amount */}
-                <Card
-                  className={`p-4 border shadow-xs ${
-                    auditData.varianceStatus === "BALANCED"
-                      ? "bg-emerald-500/5 border-emerald-500/30"
-                      : auditData.varianceStatus === "SURPLUS"
-                      ? "bg-amber-500/5 border-amber-500/30"
-                      : "bg-rose-500/5 border-rose-500/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider">
-                      {lang === "si" ? "මුදල් වෙනස (Discrepancy)" : "Variance (Counted - Expected)"}
-                    </span>
-                    {auditData.variance > 0 ? (
-                      <ArrowUpRightIcon className="size-4 text-amber-600" />
-                    ) : auditData.variance < 0 ? (
-                      <ArrowDownRightIcon className="size-4 text-rose-600" />
-                    ) : (
-                      <CheckCircle2Icon className="size-4 text-emerald-600" />
-                    )}
+                <div className="glass-card p-6 rounded-3xl border border-muted/30 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-semibold uppercase tracking-wider">
+                        Variance (Difference)
+                      </span>
+                      {auditData.variance > 0 ? (
+                        <ArrowUpRightIcon className="size-5 text-foreground" />
+                      ) : auditData.variance < 0 ? (
+                        <ArrowDownRightIcon className="size-5 text-destructive" />
+                      ) : (
+                        <CheckCircle2Icon className="size-5 text-foreground" />
+                      )}
+                    </div>
+                    <div className="text-3xl font-extrabold font-mono mt-3 text-foreground">
+                      {auditData.variance >= 0 ? "+" : ""}
+                      LKR{" "}
+                      {auditData.variance.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                    </div>
                   </div>
-                  <div
-                    className={`text-2xl font-black font-mono mt-1 ${
-                      auditData.varianceStatus === "BALANCED"
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : auditData.varianceStatus === "SURPLUS"
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-rose-600 dark:text-rose-400"
-                    }`}
-                  >
-                    {auditData.variance >= 0 ? "+" : ""}
-                    LKR{" "}
-                    {auditData.variance.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </div>
-                  <span className="text-[11px] text-muted-foreground mt-1 block">
+                  <span className="text-xs text-muted-foreground mt-4 pt-3 border-t border-muted/20 block">
                     {auditData.varianceStatus === "BALANCED"
-                      ? lang === "si"
-                        ? "මුදල් ලාච්චුව සම්පූර්ණයෙන්ම සමපාතයි."
-                        : "Drawer count exactly matches expected funds."
+                      ? "Drawer count exactly matches expected funds."
                       : auditData.varianceStatus === "SURPLUS"
-                      ? lang === "si"
-                        ? "සිස්ටම් එකට වඩා ලාච්චුවේ මුදල් වැඩියෙන් තිබේ."
-                        : "Physical cash exceeds system calculation."
-                      : lang === "si"
-                        ? "සිස්ටම් එකට වඩා ලාච්චුවේ මුදල් අඩුවෙන් තිබේ."
-                        : "Physical cash is less than system calculation."}
+                      ? "Physical cash exceeds system calculations."
+                      : "Physical cash is less than system calculations."}
                   </span>
-                </Card>
+                </div>
               </div>
 
               {/* Automated Diagnostic Checks */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheckIcon className="size-4 text-primary" />
-                    <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      {lang === "si" ? "ස්වයංක්‍රීය පරීක්ෂණ වාර්තාව" : "Diagnostic Health Checks"}
+                  <div className="flex items-center gap-3">
+                    <ShieldCheckIcon className="size-5 text-foreground" />
+                    <h5 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                      Diagnostic Checks
                     </h5>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">
-                    {lang === "si" ? "දෝෂ සහ වෙනස්කම් ස්වයංක්‍රීයව හඳුනාගැනීම" : "Rule-based discrepancy engine"}
+                  <span className="text-xs text-muted-foreground">
+                    Rule-based discrepancy engine
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {auditData.diagnosticChecks.map((chk) => (
-                    <Card
+                    <div
                       key={chk.id}
-                      className={`p-3.5 border transition-all ${
-                        chk.status === "PASSED"
-                          ? "bg-card border-border/80"
-                          : chk.status === "WARNING"
-                          ? "bg-amber-500/5 border-amber-500/30"
-                          : "bg-rose-500/5 border-rose-500/30"
-                      }`}
+                      className="glass-card p-5 rounded-2xl border border-muted/30 flex flex-col justify-between"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          {chk.status === "PASSED" ? (
-                            <CheckCircle2Icon className="size-4 text-emerald-600 shrink-0 mt-0.5" />
-                          ) : chk.status === "WARNING" ? (
-                            <AlertTriangleIcon className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                          ) : (
-                            <XCircleIcon className="size-4 text-rose-600 shrink-0 mt-0.5" />
-                          )}
-                          <div>
-                            <h6 className="text-xs font-bold text-foreground">
-                              {lang === "si" ? chk.titleSi : chk.title}
-                            </h6>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                              {lang === "si" ? chk.summarySi : chk.summary}
-                            </p>
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            {chk.status === "PASSED" ? (
+                              <CheckCircle2Icon className="size-5 text-foreground shrink-0 mt-0.5" />
+                            ) : chk.status === "WARNING" ? (
+                              <AlertTriangleIcon className="size-5 text-foreground shrink-0 mt-0.5" />
+                            ) : (
+                              <XCircleIcon className="size-5 text-destructive shrink-0 mt-0.5" />
+                            )}
+                            <div>
+                              <h6 className="text-sm font-bold text-foreground">
+                                {chk.title}
+                              </h6>
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                {chk.summary}
+                              </p>
+                            </div>
                           </div>
-                        </div>
 
-                        <Badge
-                          variant={chk.status === "PASSED" ? "secondary" : "outline"}
-                          className={`text-[10px] shrink-0 ${
-                            chk.status === "PASSED"
-                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                              : chk.status === "WARNING"
-                              ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                              : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                          }`}
-                        >
-                          {chk.status}
-                        </Badge>
+                          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold uppercase border border-muted/30 bg-surface/50 text-foreground shrink-0">
+                            {chk.status}
+                          </span>
+                        </div>
                       </div>
 
                       {chk.actionCode && chk.actionCode !== "NONE" && (
-                        <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between">
-                          <span className="text-[10px] text-muted-foreground">
-                            {lang === "si" ? "නිවැරදි කිරීමේ පියවර:" : "Recommended resolution:"}
+                        <div className="mt-4 pt-3 border-t border-muted/20 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            Resolution:
                           </span>
                           {chk.actionCode === "SET_OPENING_FLOAT" && (
                             <Button
                               size="sm"
                               onClick={handleOpenSetFloat}
                               disabled={actionLoading}
-                              className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                              className="h-10 rounded-xl px-4 text-xs font-semibold bg-foreground text-background hover:opacity-90"
                             >
-                              <CoinsIcon className="size-3 mr-1" />
-                              {lang === "si" ? "ආරම්භක මුදල සටහන් කරන්න" : "Set Opening Float"}
+                              <CoinsIcon className="size-3.5 mr-1.5" />
+                              Set Opening Float
                             </Button>
                           )}
                           {chk.actionCode === "RECORD_ADJUSTMENT" && (
@@ -644,10 +595,10 @@ export function DiscrepancyManagerDialog({
                               size="sm"
                               onClick={() => handleOpenRecordAdj()}
                               disabled={actionLoading}
-                              className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                              className="h-10 rounded-xl px-4 text-xs font-semibold bg-foreground text-background hover:opacity-90"
                             >
-                              <SlidersHorizontalIcon className="size-3 mr-1" />
-                              {lang === "si" ? "වෙනස සමබර කරන්න" : "Reconcile Difference"}
+                              <SlidersHorizontalIcon className="size-3.5 mr-1.5" />
+                              Reconcile Difference
                             </Button>
                           )}
                           {chk.actionCode === "RESYNC_LEDGER" && (
@@ -655,62 +606,50 @@ export function DiscrepancyManagerDialog({
                               size="sm"
                               onClick={handleResyncLedger}
                               disabled={actionLoading}
-                              className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                              className="h-10 rounded-xl px-4 text-xs font-semibold bg-foreground text-background hover:opacity-90"
                             >
-                              <RefreshCwIcon className="size-3 mr-1" />
-                              {lang === "si" ? "ශේෂය නැවත ගණනය කරන්න" : "Re-sync Ledger"}
+                              <RefreshCwIcon className="size-3.5 mr-1.5" />
+                              Re-sync Ledger
                             </Button>
                           )}
                         </div>
                       )}
-                    </Card>
+                    </div>
                   ))}
                 </div>
               </div>
 
               {/* Fund Flow & Inflows Breakdown Table */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    {lang === "si"
-                      ? "අද දවසේ මුදල් ලාච්චුවේ ලැබීම් වර්ගීකරණය"
-                      : "Today's Drawer Cash Inflow Breakdown"}
+                  <h5 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                    Drawer Cash Inflow Breakdown
                   </h5>
-                  <span className="text-[11px] text-muted-foreground">
-                    {lang === "si" ? "භෞතික මුදල් ගනුදෙනු පමණි" : "Physical cash receipts only"}
+                  <span className="text-xs text-muted-foreground">
+                    Physical counter cash receipts only
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-border overflow-hidden bg-card text-xs">
+                <div className="glass-card rounded-2xl border border-muted/30 overflow-hidden text-sm">
                   <table className="w-full">
-                    <thead className="bg-muted/50 text-muted-foreground font-semibold">
+                    <thead className="bg-surface/30 border-b border-muted/20 text-muted-foreground font-semibold text-xs uppercase tracking-wider">
                       <tr>
-                        <th className="py-2.5 px-3.5 text-left">
-                          {lang === "si" ? "ලැබීම් වර්ගය" : "Category / Stream"}
-                        </th>
-                        <th className="py-2.5 px-3.5 text-left">
-                          {lang === "si" ? "විස්තරය" : "Description & Notes"}
-                        </th>
-                        <th className="py-2.5 px-3.5 text-right font-mono">
-                          {lang === "si" ? "මුදල (LKR)" : "Amount (LKR)"}
-                        </th>
+                        <th className="py-3.5 px-5 text-left">Category / Stream</th>
+                        <th className="py-3.5 px-5 text-left">Description</th>
+                        <th className="py-3.5 px-5 text-right font-mono">Amount (LKR)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
+                    <tbody className="divide-y divide-muted/20">
                       <tr>
-                        <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si" ? "ආරම්භක මුදල (Opening Float)" : "Opening Cash Float"}
+                        <td className="py-3.5 px-5 font-semibold text-foreground">
+                          Opening Cash Float
                         </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground">
+                        <td className="py-3.5 px-5 text-muted-foreground">
                           {auditData.hasOpeningFloatRecord
-                            ? lang === "si"
-                              ? "උදෑසන ලාච්චුවේ තිබූ ආරම්භක මුදල (සිස්ටම් එකේ සටහන්ව ඇත)"
-                              : "Retained cash float in till at shop opening (Active in ERP)"
-                            : lang === "si"
-                              ? "උදෑසන ආරම්භක මුදල (සිස්ටම් එකේ සටහන් කර නැත)"
-                              : "Default morning float (Not yet registered in ERP)"}
+                            ? "Retained cash float in till at shop opening (Active in ERP)"
+                            : "Default morning float (Not yet registered in ERP)"}
                         </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono font-bold text-foreground">
+                        <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
                           LKR{" "}
                           {(auditData.hasOpeningFloatRecord
                             ? auditData.openingFloatAmount
@@ -719,18 +658,28 @@ export function DiscrepancyManagerDialog({
                         </td>
                       </tr>
 
+                      {auditData.previousUnsettledCash > 0 && (
+                        <tr>
+                          <td className="py-3.5 px-5 font-semibold text-foreground">
+                            Prior Days&apos; Unsettled Cash Retained
+                          </td>
+                          <td className="py-3.5 px-5 text-muted-foreground">
+                            Un-swept counter balance carried forward from previous days (pending Daily Settlement)
+                          </td>
+                          <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
+                            + LKR {auditData.previousUnsettledCash.toLocaleString()}
+                          </td>
+                        </tr>
+                      )}
+
                       <tr>
-                        <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si"
-                            ? "රීලෝඩ් සහ බිල්පත් ගෙවීම් (Reloads & Bills)"
-                            : "Telecom Reloads & Utility Bills (Cash)"}
+                        <td className="py-3.5 px-5 font-semibold text-foreground">
+                          Telecom Reloads & Utility Bills
                         </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground">
-                          {lang === "si"
-                            ? "Dialog, Mobitel, Airtel, Hutch රීලෝඩ්/පැකේජ් සහ ජල/විදුලි බිල්පත් සඳහා කවුන්ටරයෙන් ගත් මුදල්"
-                            : "Physical cash collected from customers for telecom reloads, packages & utility bills"}
+                        <td className="py-3.5 px-5 text-muted-foreground">
+                          Physical cash collected for mobile reloads, data packages, and utility payments
                         </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-600">
+                        <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
                           + LKR{" "}
                           {(
                             auditData.inflows.reloadsAndBillsCash ??
@@ -740,69 +689,91 @@ export function DiscrepancyManagerDialog({
                       </tr>
 
                       <tr>
-                        <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si" ? "විකුණුම් ලැබීම් (Retail Sales)" : "Retail Items & Printing"}
+                        <td className="py-3.5 px-5 font-semibold text-foreground">
+                          Retail Items & Printing
                         </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground">
-                          {lang === "si"
-                            ? "ෆොටෝකොපි, මුද්‍රණ, ලිපිද්‍රව්‍ය ආදී විකුණුම් සඳහා මුදලින් ගත් ආදායම"
-                            : "Photocopies, printouts, typing, and retail stationary sales"}
+                        <td className="py-3.5 px-5 text-muted-foreground">
+                          Photocopies, printouts, typing, and retail stationary sales
                         </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-600">
+                        <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
                           + LKR {auditData.inflows.retailSalesCash.toLocaleString()}
                         </td>
                       </tr>
 
                       <tr>
-                        <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si" ? "අනෙක් ශාඛා පන්ති ගාස්තු" : "Cross-Branch Tuition/Fees Held"}
+                        <td className="py-3.5 px-5 font-semibold text-foreground">
+                          Cross-Branch Tuition/Fees Held
                         </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground">
-                          {lang === "si"
-                            ? "වෙනත් ශාඛා (උදා: මාතලේ) සඳහා මෙහිදී ගෙවූ පන්ති ගාස්තු මුදල්"
-                            : "Cash collected for other branches, safely held in this counter till"}
+                        <td className="py-3.5 px-5 text-muted-foreground">
+                          Cash collected for other branches, safely held in this counter till
                         </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono font-bold text-blue-600">
+                        <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
                           + LKR {auditData.inflows.crossBranchCash.toLocaleString()}
                         </td>
                       </tr>
 
                       <tr>
-                        <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                          {lang === "si" ? "ණය පියවීම් (Debt Repayments Cash)" : "Customer Debt Settlements (Cash)"}
+                        <td className="py-3.5 px-5 font-semibold text-foreground">
+                          Customer Debt Settlements (Cash)
                         </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground">
-                          {lang === "si"
-                            ? "පෙර ණය මුදලින් පියවූ මුදල් (විකුණුම් වලට එකතු නොවේ)"
-                            : "Cash debt payments received (enters till, excluded from sales revenue)"}
+                        <td className="py-3.5 px-5 text-muted-foreground">
+                          Cash debt payments received (enters till, excluded from sales revenue)
                         </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono font-bold text-foreground">
+                        <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
                           + LKR {auditData.inflows.debtRepaymentsCash.toLocaleString()}
                         </td>
                       </tr>
 
+                      {auditData.inflows.otherCash > 0 && (
+                        <tr>
+                          <td className="py-3.5 px-5 font-semibold text-foreground">
+                            Other Counter Cash Inflows
+                          </td>
+                          <td className="py-3.5 px-5 text-muted-foreground">
+                            Miscellaneous counter cash receipts
+                          </td>
+                          <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
+                            + LKR {auditData.inflows.otherCash.toLocaleString()}
+                          </td>
+                        </tr>
+                      )}
+
                       {auditData.inflows.cashAdjustmentsInflow > 0 && (
                         <tr>
-                          <td className="py-2.5 px-3.5 font-semibold text-foreground">
-                            {lang === "si" ? "මුදල් අතිරික්ත ගැලපුම්" : "Cash Surplus Adjustments"}
+                          <td className="py-3.5 px-5 font-semibold text-foreground">
+                            Cash Surplus Adjustments
                           </td>
-                          <td className="py-2.5 px-3.5 text-muted-foreground">
-                            {lang === "si" ? "ලාච්චුව සමබර කිරීමට සටහන් කළ අතිරික්ත" : "Reconciliation surplus adjustment"}
+                          <td className="py-3.5 px-5 text-muted-foreground">
+                            Reconciliation surplus adjustment
                           </td>
-                          <td className="py-2.5 px-3.5 text-right font-mono font-bold text-amber-600">
+                          <td className="py-3.5 px-5 text-right font-mono font-bold text-foreground">
                             + LKR {auditData.inflows.cashAdjustmentsInflow.toLocaleString()}
                           </td>
                         </tr>
                       )}
 
-                      <tr className="bg-muted/30 font-bold">
-                        <td className="py-2.5 px-3.5 text-foreground">
-                          {lang === "si" ? "මුළු එකතුව (Total Expected Drawer)" : "Total Expected Drawer Cash"}
+                      {auditData.outflows.totalOutflow > 0 && (
+                        <tr>
+                          <td className="py-3.5 px-5 font-semibold text-foreground">
+                            Today Counter Expenses &amp; Outflows
+                          </td>
+                          <td className="py-3.5 px-5 text-muted-foreground">
+                            Counter cash paid out for expenses or daily sweeps today
+                          </td>
+                          <td className="py-3.5 px-5 text-right font-mono font-bold text-destructive">
+                            - LKR {auditData.outflows.totalOutflow.toLocaleString()}
+                          </td>
+                        </tr>
+                      )}
+
+                      <tr className="bg-surface/40 font-bold border-t border-muted/30">
+                        <td className="py-4 px-5 text-foreground">
+                          Total Expected Drawer Cash
                         </td>
-                        <td className="py-2.5 px-3.5 text-muted-foreground text-[11px]">
-                          {lang === "si" ? "ආරම්භක මුදල + අද දවසේ ලැබීම්" : "Float + Collections"}
+                        <td className="py-4 px-5 text-muted-foreground text-xs">
+                          Float + Prior Cash + Today Net Collections
                         </td>
-                        <td className="py-2.5 px-3.5 text-right font-mono text-base text-foreground">
+                        <td className="py-4 px-5 text-right font-mono text-lg text-foreground">
                           LKR{" "}
                           {auditData.expectedPhysicalDrawerCash.toLocaleString(undefined, {
                             minimumFractionDigits: 2,
@@ -815,29 +786,29 @@ export function DiscrepancyManagerDialog({
               </div>
 
               {/* Non-Cash Segregation Card (Proof of Accuracy) */}
-              <Card className="p-4 bg-muted/20 border-border">
-                <div className="flex items-start gap-3">
-                  <InfoIcon className="size-4 text-primary shrink-0 mt-0.5" />
-                  <div className="space-y-1 text-xs">
-                    <h6 className="font-bold text-foreground">
-                      {lang === "si"
-                        ? "මුදල් නොවන ගනුදෙනු වෙන් කර තැබීම (Non-Cash Fund Segregation)"
-                        : "Non-Cash Transaction Isolation Audit"}
+              <div className="glass-card p-6 rounded-3xl border border-muted/30">
+                <div className="flex items-start gap-4">
+                  <InfoIcon className="size-6 text-foreground shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h6 className="font-bold text-foreground text-base">
+                      Non-Cash Transaction Isolation Audit
                     </h6>
-                    <p className="text-muted-foreground leading-relaxed text-[11px]">
-                      {lang === "si"
-                        ? `අද දින ණය විකුණුම් (LKR ${auditData.nonCashSeparation.creditSalesAmount.toLocaleString()}) සහ බැංකුවට ලැබුණු ණය පියවීම් (LKR ${auditData.nonCashSeparation.bankTransferDebtRepayments.toLocaleString()}) කිසිවක් මුදල් ලාච්චුවේ ශේෂයට එකතු වී නැත. එමඟින් ලාච්චුවේ භෞතික මුදල් ශේෂය 100% ක් නිවැරදිව පවත්වා ගනී.`
-                        : `Credit sales (LKR ${auditData.nonCashSeparation.creditSalesAmount.toLocaleString()}) and bank transfer debt settlements (LKR ${auditData.nonCashSeparation.bankTransferDebtRepayments.toLocaleString()}) were properly excluded from the cash drawer to protect physical till integrity.`}
+                    <p className="text-muted-foreground leading-relaxed text-sm">
+                      Credit sales (LKR {auditData.nonCashSeparation.creditSalesAmount.toLocaleString()}) and bank transfer debt settlements (LKR {auditData.nonCashSeparation.bankTransferDebtRepayments.toLocaleString()}) were properly excluded from the cash drawer to protect physical till integrity.
                     </p>
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
           ) : null}
 
-          <DialogFooter className="border-t border-border pt-4">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              {lang === "si" ? "වසන්න" : "Close"}
+          <DialogFooter className="border-t border-muted/20 pt-6">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="h-14 rounded-2xl px-8 text-base font-semibold border-muted/30 bg-surface/30 hover:bg-surface/60"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -845,26 +816,24 @@ export function DiscrepancyManagerDialog({
 
       {/* SUB-MODAL 1: SET OPENING FLOAT */}
       <Dialog open={subModal === "SET_FLOAT"} onOpenChange={(o) => !o && setSubModal("NONE")}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <CoinsIcon className="size-4 text-amber-600" />
-              <span>{lang === "si" ? "ආරම්භක මුදල සටහන් කරන්න" : "Record Daily Opening Float"}</span>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+              <CoinsIcon className="size-6 text-foreground" />
+              <span>Record Daily Opening Float</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {lang === "si"
-                ? `${shopName} සඳහා ${selectedDate} දින ආරම්භක මුදල ලේඛනයට ඇතුළත් කරන්න.`
-                : `Set the opening cash float kept in the drawer for ${shopName} on ${selectedDate}.`}
+            <DialogDescription className="text-sm text-muted-foreground font-normal">
+              Set the opening cash float kept in the drawer for {shopName} on {selectedDate}.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmitFloat} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                {lang === "si" ? "ආරම්භක මුදල (LKR) *" : "Float Amount (LKR) *"}
+          <form onSubmit={handleSubmitFloat} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Float Amount (LKR) *
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-2 text-xs font-mono text-muted-foreground">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">
                   LKR
                 </span>
                 <Input
@@ -874,51 +843,48 @@ export function DiscrepancyManagerDialog({
                   required
                   value={floatAmountInput}
                   onChange={(e) => setFloatAmountInput(Number(e.target.value) || 0)}
-                  className="pl-12 font-mono font-bold text-sm"
+                  className="pl-14 h-12 rounded-2xl bg-surface/40 border-muted/30 font-mono font-bold text-sm"
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                {lang === "si"
-                  ? "සාමාන්‍යයෙන් ලාච්චුවේ තබා ගන්නා මුදල (උදා: LKR 4,000)."
-                  : "Standard drawer float kept at opening (e.g. LKR 4,000)."}
+              <p className="text-xs text-muted-foreground">
+                Standard drawer float kept at opening (e.g. LKR 4,000).
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                {lang === "si" ? "සටහන (අත්‍යවශ්‍ය නොවේ)" : "Note / Remarks (Optional)"}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Remarks (Optional)
               </label>
               <Textarea
-                placeholder="e.g. Counter drawer cash float"
+                placeholder="e.g. Morning counter drawer cash float"
                 value={floatNoteInput}
                 onChange={(e) => setFloatNoteInput(e.target.value)}
-                className="text-xs"
-                rows={2}
+                className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
+                rows={3}
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="gap-3 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={() => setSubModal("NONE")}
                 disabled={actionLoading}
+                className="h-12 rounded-2xl text-sm px-6 border-muted/30"
               >
-                {lang === "si" ? "අවලංගු කරන්න" : "Cancel"}
+                Cancel
               </Button>
               <Button
                 type="submit"
-                size="sm"
                 disabled={actionLoading}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
               >
                 {actionLoading ? (
-                  <Loader2Icon className="size-3.5 animate-spin mr-1.5" />
+                  <Loader2Icon className="size-4 animate-spin mr-2" />
                 ) : (
-                  <CheckCircle2Icon className="size-3.5 mr-1.5" />
+                  <CheckCircle2Icon className="size-4 mr-2" />
                 )}
-                {lang === "si" ? "තහවුරු කරන්න" : "Save Opening Float"}
+                Save Float
               </Button>
             </DialogFooter>
           </form>
@@ -930,58 +896,54 @@ export function DiscrepancyManagerDialog({
         open={subModal === "RECORD_ADJUSTMENT"}
         onOpenChange={(o) => !o && setSubModal("NONE")}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <SlidersHorizontalIcon className="size-4 text-amber-600" />
-              <span>
-                {lang === "si" ? "මුදල් වෙනස සමබර කිරීමේ ගැලපුම" : "Record Cash Drawer Adjustment"}
-              </span>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+              <SlidersHorizontalIcon className="size-6 text-foreground" />
+              <span>Record Cash Drawer Adjustment</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {lang === "si"
-                ? "භෞතික මුදල් ලාච්චුව සහ සිස්ටම් එක 100% ක් සමපාත කිරීම සඳහා ගැලපුමක් සටහන් කරන්න."
-                : "True-up ledger records to align with actual counted drawer cash."}
+            <DialogDescription className="text-sm text-muted-foreground font-normal">
+              True-up ledger records to align with actual counted drawer cash.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmitAdjustment} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                {lang === "si" ? "ගැලපුම් වර්ගය *" : "Adjustment Type *"}
+          <form onSubmit={handleSubmitAdjustment} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Adjustment Type *
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setAdjTypeInput("SURPLUS")}
-                  className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all ${
+                  className={`h-12 rounded-2xl border text-sm font-semibold text-center transition-all cursor-pointer ${
                     adjTypeInput === "SURPLUS"
-                      ? "bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500"
-                      : "border-border text-muted-foreground hover:bg-muted"
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-muted/30 bg-surface/30 text-foreground hover:bg-surface/60"
                   }`}
                 >
-                  {lang === "si" ? "+ අතිරික්තයක් (Surplus)" : "+ Surplus Inflow"}
+                  + Surplus Inflow
                 </button>
                 <button
                   type="button"
                   onClick={() => setAdjTypeInput("SHORTAGE")}
-                  className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all ${
+                  className={`h-12 rounded-2xl border text-sm font-semibold text-center transition-all cursor-pointer ${
                     adjTypeInput === "SHORTAGE"
-                      ? "bg-rose-500/10 border-rose-500 text-rose-700 dark:text-rose-400 ring-1 ring-rose-500"
-                      : "border-border text-muted-foreground hover:bg-muted"
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-muted/30 bg-surface/30 text-foreground hover:bg-surface/60"
                   }`}
                 >
-                  {lang === "si" ? "- හිඟයක් (Shortage)" : "- Shortage Outflow"}
+                  - Shortage Outflow
                 </button>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                {lang === "si" ? "ගැලපුම් මුදල (LKR) *" : "Adjustment Amount (LKR) *"}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Adjustment Amount (LKR) *
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-2 text-xs font-mono text-muted-foreground">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">
                   LKR
                 </span>
                 <Input
@@ -991,47 +953,46 @@ export function DiscrepancyManagerDialog({
                   required
                   value={adjAmountInput}
                   onChange={(e) => setAdjAmountInput(Number(e.target.value) || 0)}
-                  className="pl-12 font-mono font-bold text-sm"
+                  className="pl-14 h-12 rounded-2xl bg-surface/40 border-muted/30 font-mono font-bold text-sm"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                {lang === "si" ? "හේතුව / විස්තරය *" : "Reason / Explanation *"}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Reason / Explanation *
               </label>
               <Textarea
                 placeholder="e.g. Unrecorded walk-in photocopy sales surplus / rounding"
                 value={adjReasonInput}
                 onChange={(e) => setAdjReasonInput(e.target.value)}
-                className="text-xs"
-                rows={2}
+                className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
+                rows={3}
                 required
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="gap-3 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={() => setSubModal("NONE")}
                 disabled={actionLoading}
+                className="h-12 rounded-2xl text-sm px-6 border-muted/30"
               >
-                {lang === "si" ? "අවලංගු කරන්න" : "Cancel"}
+                Cancel
               </Button>
               <Button
                 type="submit"
-                size="sm"
                 disabled={actionLoading || adjAmountInput <= 0}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
               >
                 {actionLoading ? (
-                  <Loader2Icon className="size-3.5 animate-spin mr-1.5" />
+                  <Loader2Icon className="size-4 animate-spin mr-2" />
                 ) : (
-                  <CheckCircle2Icon className="size-3.5 mr-1.5" />
+                  <CheckCircle2Icon className="size-4 mr-2" />
                 )}
-                {lang === "si" ? "ගැලපුම සටහන් කරන්න" : "Record Adjustment"}
+                Record Adjustment
               </Button>
             </DialogFooter>
           </form>

@@ -34,6 +34,14 @@ export async function loginAction(formData: unknown) {
 
     return { success: true };
   } catch (error) {
+    // If NextAuth throws NEXT_REDIRECT, it means authentication succeeded and session was created
+    if (
+      (typeof error === "object" && error !== null && "digest" in error && String((error as any).digest).startsWith("NEXT_REDIRECT")) ||
+      (error instanceof Error && error.message.includes("NEXT_REDIRECT"))
+    ) {
+      return { success: true };
+    }
+
     if (error instanceof AuthError) {
       switch (error.type) {
         case "CredentialsSignin":
@@ -42,6 +50,7 @@ export async function loginAction(formData: unknown) {
           return { success: false, error: "Authentication failed. Please try again." };
       }
     }
+    console.error("Login unexpected error:", error);
     return { success: false, error: "An unexpected error occurred during login." };
   }
 }

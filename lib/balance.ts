@@ -1078,6 +1078,8 @@ export interface DiscrepancyAuditData {
   };
 
   todayNetCollections: number;
+  previousDaysCarryover: number;
+  previousUnsettledCash: number;
   systemDrawerCash: number;
   expectedPhysicalDrawerCash: number;
   countedCash: number;
@@ -1268,6 +1270,15 @@ export async function getShopDiscrepancyAuditData(
 
   const systemDrawerCash = await getShopCashBalance(shopObjId);
 
+  const rawPrevBalance = systemDrawerCash - todayNetCollections - (hasOpeningFloatRecord ? openingFloatAmount : 0);
+  const previousDaysCarryover = Number(Math.max(0, rawPrevBalance).toFixed(2));
+  const previousUnsettledCash = Number(
+    (hasOpeningFloatRecord
+      ? previousDaysCarryover
+      : Math.max(0, previousDaysCarryover - defaultConfiguredFloat)
+    ).toFixed(2)
+  );
+
   const expectedPhysicalDrawerCash = hasOpeningFloatRecord
     ? systemDrawerCash
     : (systemDrawerCash >= defaultConfiguredFloat
@@ -1315,6 +1326,22 @@ export async function getShopDiscrepancyAuditData(
       summarySi: `අද දින ආරම්භක මුදල (LKR ${openingFloatAmount.toLocaleString()}) නිවැරදිව සිස්ටම් එකේ සටහන්ව පවතී.`,
       details: `Float is safely tracked in the drawer balance.`,
       detailsSi: `ආරම්භක මුදල මුදල් ලාච්චුවේ ශේෂයට නිවැරදිව එකතු වී ඇත.`,
+      actionCode: "NONE",
+    });
+  }
+
+  // Check 1.5: Prior Days' Unsettled Cash Retained in Drawer
+  if (previousUnsettledCash > 0) {
+    diagnosticChecks.push({
+      id: "PRIOR_UNSETTLED_CASH",
+      title: "Prior Days' Unsettled Cash Retained in Till",
+      titleSi: "පෙර දිනවල ක්ලෝසින් නොකළ මුදල් ලාච්චුවේ ඇත",
+      status: "WARNING",
+      summary: `LKR ${previousUnsettledCash.toLocaleString()} remained in the counter till from prior days without a Daily Settlement sweep.`,
+      summarySi: `පෙර දිනවල Daily Settlement (දවසේ ක්ලෝසින් එක) කර අතිරික්ත මුදල් බැංකුවට හෝ Petty Cash එකට නොයැවූ බැවින් LKR ${previousUnsettledCash.toLocaleString()} ක මුදලක් ලාච්චුවේ ඉතිරිව පවතී.`,
+      details: `When combined with today's collections and opening float, total expected cash in the drawer is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.`,
+      detailsSi: `ආරම්භක මුදල, පෙර දිනවල ඉතිරි මුදල (LKR ${previousUnsettledCash.toLocaleString()}) සහ අද ලැබීම් එකතු වූ විට මුළු ලාච්චුවේ තිබිය යුතු මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} වේ.`,
+      actionRequired: "Perform a Daily Settlement to sweep prior surplus to safe/bank.",
       actionCode: "NONE",
     });
   }
@@ -1437,23 +1464,23 @@ export async function getShopDiscrepancyAuditData(
   // Plain-Language Summary
   const plainLanguageSummary = {
     en: !hasOpeningFloatRecord
-      ? `Today's physical cash collections total LKR ${totalInflow.toLocaleString()}. The system currently shows LKR ${systemDrawerCash.toLocaleString()} because the morning opening float of LKR ${defaultConfiguredFloat.toLocaleString()} was not recorded in the ERP. With the float, expected drawer cash is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.${
+      ? `Today's physical cash collections total LKR ${totalInflow.toLocaleString()}${previousUnsettledCash > 0 ? ` with LKR ${previousUnsettledCash.toLocaleString()} retained from prior unsettled days` : ""}. Standard opening float is LKR ${defaultConfiguredFloat.toLocaleString()} (unrecorded). Total expected physical cash in the drawer is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.${
           variance !== 0
             ? ` Physical count of LKR ${countedCash.toLocaleString()} has a ${varianceStatus.toLowerCase()} of LKR ${Math.abs(variance).toLocaleString()}.`
             : " Physical count matches expected cash perfectly."
         }`
-      : `Today's physical collections are LKR ${totalInflow.toLocaleString()} with an opening float of LKR ${openingFloatAmount.toLocaleString()}. Total expected cash in the drawer is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.${
+      : `Today's physical collections are LKR ${totalInflow.toLocaleString()}${previousUnsettledCash > 0 ? ` with LKR ${previousUnsettledCash.toLocaleString()} prior unsettled balance` : ""} and opening float of LKR ${openingFloatAmount.toLocaleString()}. Total expected cash in the drawer is LKR ${expectedPhysicalDrawerCash.toLocaleString()}.${
           variance !== 0
             ? ` Counted cash has a ${varianceStatus.toLowerCase()} of LKR ${Math.abs(variance).toLocaleString()}.`
             : " Counted cash is 100% balanced."
         }`,
     si: !hasOpeningFloatRecord
-      ? `අද දවසේ මුදලින් ලැබුණු එකතුව LKR ${totalInflow.toLocaleString()} කි. උදෑසන ආරම්භක මුදල (LKR ${defaultConfiguredFloat.toLocaleString()}) සිස්ටම් එකේ සටහන් කර නොතිබූ බැවින්, සිස්ටම් එකේ ශේෂය ලෙස පෙන්නුම් කළේ දවසේ ලැබීම් මුදල පමණි. ආරම්භක මුදල සමඟ ලාච්චුවේ තිබිය යුතු නියම මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} කි.${
+      ? `අද දවසේ මුදලින් ලැබුණු එකතුව LKR ${totalInflow.toLocaleString()} කි${previousUnsettledCash > 0 ? ` (පෙර දිනවල ක්ලෝසින් නොකළ LKR ${previousUnsettledCash.toLocaleString()} ද ඇතුළුව)` : ""}. උදෑසන ආරම්භක මුදල LKR ${defaultConfiguredFloat.toLocaleString()} සමඟ ලාච්චුවේ තිබිය යුතු මුළු මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} කි.${
           variance !== 0
             ? ` භෞතිකව ගණන් කළ මුදල (LKR ${countedCash.toLocaleString()}) අනුව LKR ${Math.abs(variance).toLocaleString()} ක ${varianceStatus === "SURPLUS" ? "අතිරික්තයක්" : "හිඟයක්"} පවතී.`
             : " ගණන් කළ මුදල සහ සිස්ටම් මුදල 100% ක් සමබරයි."
         }`
-      : `අද දවසේ ලැබීම් LKR ${totalInflow.toLocaleString()} ක් වන අතර ආරම්භක මුදල LKR ${openingFloatAmount.toLocaleString()} කි. ලාච්චුවේ තිබිය යුතු මුළු මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} කි.${
+      : `අද දවසේ ලැබීම් LKR ${totalInflow.toLocaleString()} ක් වන අතර${previousUnsettledCash > 0 ? ` (පෙර දිනවල ඉතිරි LKR ${previousUnsettledCash.toLocaleString()} ද සමඟ)` : ""} ආරම්භක මුදල LKR ${openingFloatAmount.toLocaleString()} කි. ලාච්චුවේ තිබිය යුතු මුළු මුදල LKR ${expectedPhysicalDrawerCash.toLocaleString()} කි.${
           variance !== 0
             ? ` ගණන් කළ මුදල අනුව LKR ${Math.abs(variance).toLocaleString()} ක ${varianceStatus === "SURPLUS" ? "අතිරික්තයක්" : "හිඟයක්"} ඇත.`
             : " ලාච්චුවේ මුදල් 100% ක් සමබරයි."
@@ -1502,6 +1529,8 @@ export async function getShopDiscrepancyAuditData(
     },
 
     todayNetCollections,
+    previousDaysCarryover,
+    previousUnsettledCash,
     systemDrawerCash,
     expectedPhysicalDrawerCash,
     countedCash,

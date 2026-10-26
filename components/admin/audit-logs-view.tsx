@@ -5,30 +5,25 @@ import { getAuditLogsAction } from "@/actions/audit";
 import { DataTable } from "@/components/shared/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  HistoryIcon,
-  FilterIcon,
-  RefreshCwIcon,
-  DownloadIcon,
-  RotateCcwIcon,
-  SearchIcon,
-  EyeIcon,
-  ShieldCheckIcon,
-  ShieldAlertIcon,
-  GlobeIcon,
-  UserIcon,
-  ArrowRightIcon,
-  ClockIcon,
+  RefreshCw,
+  Download,
+  RotateCcw,
+  Search,
+  Eye,
+  ShieldCheck,
+  Globe,
+  Filter,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
@@ -50,6 +45,9 @@ export function AuditLogsView({
   const [page, setPage] = React.useState<number>(initialPage);
   const [totalPages, setTotalPages] = React.useState<number>(initialTotalPages);
   const [loading, setLoading] = React.useState(false);
+
+  // Progressive Disclosure
+  const [showFilters, setShowFilters] = React.useState(false);
 
   // Filters
   const [actionFilter, setActionFilter] = React.useState("ALL");
@@ -81,7 +79,7 @@ export function AuditLogsView({
     } else {
       toast.create({
         title: "Failed to load audit logs",
-        description: res.error || "An error occurred while fetching logs",
+        description: res.error || "An error occurred.",
         type: "error",
       });
     }
@@ -106,9 +104,8 @@ export function AuditLogsView({
   const handleExportCSV = () => {
     if (logs.length === 0) {
       toast.create({
-        title: "No logs to export",
-        description: "No audit records match the current filter selection.",
-        type: "warning",
+        title: "Export empty",
+        description: "No logs to export.",
       });
       return;
     }
@@ -122,7 +119,7 @@ export function AuditLogsView({
       "Target Type",
       "Target ID",
       "Bill Number",
-      "Reason / Note",
+      "Reason",
       "IP Address",
     ];
 
@@ -151,55 +148,10 @@ export function AuditLogsView({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `audit-trail-report-${new Date().toISOString().split("T")[0]}.csv`
-    );
+    link.setAttribute("download", `Audit_Logs_${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
-    toast.create({
-      title: "Audit CSV Exported",
-      description: `Exported ${logs.length} audit records successfully.`,
-      type: "success",
-    });
-  };
-
-  const renderActionBadge = (action: string) => {
-    if (action.includes("DELETE")) {
-      return (
-        <Badge variant="destructive" className="text-[10px] font-mono uppercase">
-          {action.replace(/_/g, " ")}
-        </Badge>
-      );
-    }
-    if (action.includes("EDIT") || action.includes("UPDATE")) {
-      return (
-        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-          {action.replace(/_/g, " ")}
-        </Badge>
-      );
-    }
-    if (action.includes("REVIEW") || action.includes("APPROVE")) {
-      return (
-        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-          {action.replace(/_/g, " ")}
-        </Badge>
-      );
-    }
-    if (action.includes("TOPUP") || action.includes("DEPOSIT")) {
-      return (
-        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
-          {action.replace(/_/g, " ")}
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="secondary" className="text-[10px] font-mono uppercase">
-        {action.replace(/_/g, " ")}
-      </Badge>
-    );
   };
 
   const columns: ColumnDef<any>[] = [
@@ -207,19 +159,14 @@ export function AuditLogsView({
       accessorKey: "createdAt",
       header: "Timestamp",
       cell: ({ row }) => (
-        <div className="flex flex-col font-mono text-[11px]">
-          <span className="font-semibold text-foreground">
-            {new Date(row.original.createdAt).toLocaleDateString()}
-          </span>
-          <span className="text-muted-foreground text-[10px]">
-            {new Date(row.original.createdAt).toLocaleTimeString()}
-          </span>
-        </div>
+        <span className="font-mono text-base font-semibold text-foreground whitespace-nowrap">
+          {new Date(row.original.createdAt).toLocaleString()}
+        </span>
       ),
     },
     {
       accessorKey: "actorName",
-      header: "Actor / User",
+      header: "Actor",
       cell: ({ row }) => {
         const l = row.original;
         const name = l.actorName || l.actor?.name || "System";
@@ -227,14 +174,11 @@ export function AuditLogsView({
         const role = l.actorRole || l.actor?.role || "USER";
 
         return (
-          <div className="flex flex-col max-w-[170px]">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-foreground truncate">{name}</span>
-              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 uppercase font-mono">
-                {role}
-              </Badge>
+          <div className="space-y-0.5">
+            <div className="font-bold text-base text-foreground">
+              {name} • <span className="text-stat-1 text-sm uppercase">{role}</span>
             </div>
-            <span className="text-[10px] text-muted-foreground truncate">{email}</span>
+            <div className="text-sm text-muted-foreground">{email}</div>
           </div>
         );
       },
@@ -242,38 +186,46 @@ export function AuditLogsView({
     {
       accessorKey: "action",
       header: "Action",
-      cell: ({ row }) => renderActionBadge(row.original.action),
+      cell: ({ row }) => {
+        const action = row.original.action || "";
+        const isDelete = action.includes("DELETE");
+        return (
+          <span
+            className={`font-mono text-base font-bold uppercase ${
+              isDelete ? "text-destructive" : "text-stat-1"
+            }`}
+          >
+            {action.replace(/_/g, " ")}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "targetType",
-      header: "Target / Entity",
+      header: "Entity",
       cell: ({ row }) => {
         const l = row.original;
         const billNumber = l.metadata?.billNumber;
         return (
-          <div className="flex flex-col max-w-[160px]">
-            <span className="text-xs font-semibold text-foreground">
+          <div className="space-y-0.5">
+            <span className="font-semibold text-base text-foreground">
               {l.targetType}
             </span>
-            {billNumber ? (
-              <span className="text-[10px] font-mono text-primary truncate">
+            {billNumber && (
+              <span className="font-mono text-sm text-stat-2 block">
                 Bill: {billNumber}
               </span>
-            ) : l.targetId ? (
-              <span className="text-[10px] font-mono text-muted-foreground truncate">
-                ID: {String(l.targetId).slice(-6)}
-              </span>
-            ) : null}
+            )}
           </div>
         );
       },
     },
     {
       accessorKey: "ipAddress",
-      header: "IP / Origin",
+      header: "Origin",
       cell: ({ row }) => (
-        <div className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
-          <GlobeIcon className="size-3 shrink-0" />
+        <div className="flex items-center gap-2 text-base font-mono text-muted-foreground">
+          <Globe className="size-4 shrink-0" />
           <span>{row.original.ipAddress || "127.0.0.1"}</span>
         </div>
       ),
@@ -284,274 +236,195 @@ export function AuditLogsView({
       cell: ({ row }) => (
         <Button
           variant="outline"
-          size="sm"
           onClick={() => setInspectLog(row.original)}
-          className="h-7 px-2.5 text-[11px] font-medium gap-1"
+          className="h-10 rounded-xl px-4 border-muted/30 text-foreground hover:bg-surface/50 text-sm font-semibold gap-2"
         >
-          <EyeIcon className="size-3" />
-          Inspect
+          <Eye className="size-4" />
+          <span>Inspect</span>
         </Button>
       ),
     },
   ];
 
-  // Helper to compute diff between previousState and newState
-  const renderStateDiff = (log: any) => {
-    const prev = log.metadata?.previousState;
-    const next = log.metadata?.newState;
-
-    if (!prev && !next) {
-      return (
-        <div className="p-3 rounded-lg border border-border bg-muted/30 text-xs text-muted-foreground">
-          No state modifications captured for this event.
-        </div>
-      );
-    }
-
-    if (prev && !next) {
-      // Deletion snapshot
-      return (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-            Snapshot Before Deletion
-          </h4>
-          <div className="grid grid-cols-2 gap-2 p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-xs">
-            {Object.entries(prev).map(([k, v]) => (
-              <div key={k} className="flex flex-col">
-                <span className="text-[10px] uppercase font-mono text-muted-foreground">{k}</span>
-                <span className="font-semibold text-foreground font-mono">{String(v ?? "—")}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    // Comparison diff
-    const allKeys = Array.from(new Set([...Object.keys(prev || {}), ...Object.keys(next || {})]));
-    const changedKeys = allKeys.filter((k) => String(prev?.[k]) !== String(next?.[k]));
-
-    return (
-      <div className="space-y-3">
-        <h4 className="text-xs font-semibold uppercase text-muted-foreground flex items-center justify-between">
-          <span>Field Modifications ({changedKeys.length} changed)</span>
-          <span className="text-[10px] text-muted-foreground font-normal">
-            Old Value &rarr; New Value
-          </span>
-        </h4>
-
-        {changedKeys.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No field differences detected.</p>
-        ) : (
-          <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
-            {changedKeys.map((k) => (
-              <div key={k} className="grid grid-cols-12 p-2.5 text-xs items-center gap-2 bg-card">
-                <div className="col-span-3 font-mono text-[11px] font-semibold text-muted-foreground uppercase">
-                  {k}
-                </div>
-                <div className="col-span-4 font-mono text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-1 rounded truncate">
-                  {String(prev?.[k] ?? "null")}
-                </div>
-                <div className="col-span-1 flex justify-center text-muted-foreground">
-                  <ArrowRightIcon className="size-3" />
-                </div>
-                <div className="col-span-4 font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded font-semibold truncate">
-                  {String(next?.[k] ?? "null")}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+    <div className="space-y-10">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-bold tracking-tight text-foreground">
               Audit Trail
             </h1>
-            <Badge variant="outline" className="text-xs font-mono bg-primary/10 text-primary border-primary/20">
-              <ShieldCheckIcon className="size-3 mr-1" />
-              Immutable
-            </Badge>
+            <ShieldCheck className="size-6 text-stat-1" />
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Cryptographically sound, non-repudiable audit logs recording all transactions, overrides, deletions, and actor details.
+          <p className="text-base text-muted-foreground">
+            Non-repudiable Security Ledger & System Action Trail
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => fetchLogs(page)}
             disabled={loading}
-            className="h-8 text-xs font-medium"
+            className="h-14 rounded-2xl bg-surface/40 hover:bg-surface/70 border border-muted/20 text-foreground text-base font-semibold px-5 gap-2.5"
           >
-            <RefreshCwIcon className={`size-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} />
+            <span>Sync</span>
           </Button>
 
           <Button
-            variant="default"
-            size="sm"
             onClick={handleExportCSV}
-            className="h-8 text-xs font-medium"
+            className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 text-base font-semibold px-6 gap-2.5"
           >
-            <DownloadIcon className="size-3.5 mr-1.5" />
-            Export Audit CSV
+            <Download className="size-5" />
+            <span>CSV</span>
           </Button>
         </div>
       </div>
 
-      {/* Filters Card */}
-      <Card className="border border-border/80 bg-card shadow-sm">
-        <CardHeader className="pb-3 pt-4 px-4 border-b border-border/40">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FilterIcon className="size-4 text-primary" />
-              <CardTitle className="text-sm font-semibold">Filter Audit Records</CardTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetFilters}
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcwIcon className="size-3 mr-1" />
-              Reset Filters
-            </Button>
+      {/* Filter and Search Bar */}
+      <div className="glass-panel rounded-3xl p-6 sm:p-8 space-y-6 border-muted/20 shadow-lg">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-4 size-5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search user, action, bill number, or notes..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
+              className="h-14 rounded-2xl bg-surface/30 border-muted/30 pl-12 pr-4 text-base font-medium placeholder:text-muted-foreground/60 focus:border-foreground/50"
+            />
           </div>
-        </CardHeader>
-        <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {/* Search */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Search
-              </label>
-              <div className="relative">
-                <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Actor, email, bill, reason..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
-                  className="h-8 text-xs pl-8 font-medium"
-                />
+
+          <Button
+            type="button"
+            onClick={() => setShowFilters(!showFilters)}
+            className="h-14 rounded-2xl bg-surface/50 hover:bg-surface/80 text-foreground border border-muted/20 text-base font-semibold px-6 justify-between gap-3"
+          >
+            <span className="flex items-center gap-2.5">
+              <Filter className="size-5" />
+              <span>Filters</span>
+            </span>
+            {showFilters ? <ChevronUp className="size-5" /> : <ChevronDown className="size-5" />}
+          </Button>
+
+          <Button
+            type="button"
+            onClick={handleApplyFilters}
+            disabled={loading}
+            className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 text-base font-semibold px-8"
+          >
+            Apply
+          </Button>
+        </div>
+
+        {showFilters && (
+          <div className="pt-6 border-t border-muted/20 space-y-6 animate-in fade-in-50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Action
+                </label>
+                <select
+                  value={actionFilter}
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Actions</option>
+                  <option value="LOGIN_SUCCESS">Login Success</option>
+                  <option value="LOGOUT">Logout</option>
+                  <option value="TRANSACTION_CREATE">Transaction Create</option>
+                  <option value="TRANSACTION_EDIT">Transaction Edit</option>
+                  <option value="TRANSACTION_DELETE">Transaction Delete</option>
+                  <option value="USER_CREATE">User Create</option>
+                  <option value="SHOP_CREATE">Shop Create</option>
+                </select>
               </div>
-            </div>
 
-            {/* Action Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Action Type
-              </label>
-              <select
-                value={actionFilter}
-                onChange={(e) => setActionFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Actions</option>
-                <option value="ADMIN_EDIT_TRANSACTION" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Admin Edit Transaction</option>
-                <option value="ADMIN_DELETE_TRANSACTION" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Admin Delete Transaction</option>
-                <option value="TRANSACTION_REVIEW" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Transaction Review</option>
-                <option value="PETTY_CASH_TOPUP" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash Top-Up</option>
-                <option value="PETTY_CASH_WITHDRAWAL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash Withdrawal</option>
-                <option value="BANK_DEPOSIT" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Bank Deposit</option>
-                <option value="BANK_WITHDRAWAL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Bank Withdrawal</option>
-              </select>
-            </div>
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Target Entity
+                </label>
+                <select
+                  value={targetTypeFilter}
+                  onChange={(e) => setTargetTypeFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Entities</option>
+                  <option value="TRANSACTION">Transaction</option>
+                  <option value="USER">User</option>
+                  <option value="SHOP">Branch</option>
+                  <option value="BANK_ACCOUNT">Bank Account</option>
+                  <option value="PETTY_CASH">Petty Cash</option>
+                </select>
+              </div>
 
-            {/* Target Type */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Target Entity
-              </label>
-              <select
-                value={targetTypeFilter}
-                onChange={(e) => setTargetTypeFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Entities</option>
-                <option value="FinanceRecord" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Finance Record</option>
-                <option value="BankAccount" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Bank Account</option>
-                <option value="PettyCashAccount" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash Account</option>
-                <option value="Shop" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Shop / Branch</option>
-                <option value="CommunicationItem" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Communication Item</option>
-                <option value="User" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">User</option>
-                <option value="Category" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Category</option>
-              </select>
-            </div>
-
-            {/* Date Range */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Date Range
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Date From
+                </label>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-8 text-[11px] px-2"
+                  className="h-14 rounded-2xl bg-surface/40 border-muted/30 px-4 text-base font-medium"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Date To
+                </label>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-8 text-[11px] px-2"
+                  className="h-14 rounded-2xl bg-surface/40 border-muted/30 px-4 text-base font-medium"
                 />
               </div>
             </div>
-          </div>
 
-          <div className="flex justify-end pt-1">
-            <Button
-              size="sm"
-              onClick={handleApplyFilters}
-              disabled={loading}
-              className="h-8 px-4 text-xs font-semibold"
-            >
-              <FilterIcon className="size-3.5 mr-1.5" />
-              Apply Filters
-            </Button>
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleResetFilters}
+                className="h-12 rounded-xl text-base font-semibold text-muted-foreground hover:text-foreground px-5 gap-2"
+              >
+                <RotateCcw className="size-4" />
+                <span>Reset</span>
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {/* Logs Table */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+      {/* Audit Logs Table */}
+      <div className="glass-panel rounded-3xl p-6 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+        <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
           <span>
-            Displaying <strong className="text-foreground">{logs.length}</strong> of{" "}
-            <strong className="text-foreground">{total}</strong> total audit events
+            <strong className="text-foreground">{logs.length}</strong> of{" "}
+            <strong className="text-foreground">{total}</strong> events
           </span>
+
           {totalPages > 1 && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
-                size="sm"
                 disabled={page <= 1 || loading}
                 onClick={() => fetchLogs(page - 1)}
-                className="h-7 px-2.5 text-xs"
+                className="h-11 rounded-xl px-4 text-base font-medium border-muted/20"
               >
                 Previous
               </Button>
-              <span className="font-mono text-xs px-1">
+              <span className="font-mono text-base font-bold text-foreground">
                 {page} / {totalPages}
               </span>
               <Button
                 variant="outline"
-                size="sm"
                 disabled={page >= totalPages || loading}
                 onClick={() => fetchLogs(page + 1)}
-                className="h-7 px-2.5 text-xs"
+                className="h-11 rounded-xl px-4 text-base font-medium border-muted/20"
               >
                 Next
               </Button>
@@ -563,85 +436,84 @@ export function AuditLogsView({
           columns={columns}
           data={logs}
           searchKey="action"
-          searchPlaceholder="Filter action in current page..."
+          searchPlaceholder="Quick filter action in view..."
           loading={loading}
         />
       </div>
 
-      {/* INSPECT LOG DETAILS DIALOG */}
+      {/* INSPECT LOG MODAL */}
       <Dialog open={!!inspectLog} onOpenChange={(open) => !open && setInspectLog(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <HistoryIcon className="size-4 text-primary" />
-              Audit Log Details
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Event Details
             </DialogTitle>
-            <DialogDescription>
-              Detailed record of action, modifications, and environmental metadata.
-            </DialogDescription>
+            <p className="text-sm text-muted-foreground font-normal">
+              Full immutable trace and state diff for this audit record.
+            </p>
           </DialogHeader>
 
           {inspectLog && (
-            <div className="space-y-4 py-2">
-              {/* Event Overview Box */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-lg border border-border bg-muted/40">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-mono text-muted-foreground">Actor</span>
-                  <p className="text-xs font-semibold text-foreground truncate">
-                    {inspectLog.actorName || inspectLog.actor?.name || "System"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-mono truncate">
-                    {inspectLog.actorEmail || inspectLog.actor?.email}
-                  </p>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1 p-3.5 rounded-2xl bg-surface/30 border border-muted/20">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action</div>
+                  <div className="font-mono text-base font-bold text-stat-1">{inspectLog.action}</div>
                 </div>
 
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-mono text-muted-foreground">Role</span>
-                  <Badge variant="outline" className="text-[10px] font-mono">
-                    {inspectLog.actorRole || inspectLog.actor?.role || "USER"}
-                  </Badge>
-                </div>
-
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-mono text-muted-foreground">IP Address</span>
-                  <p className="text-xs font-mono font-semibold text-foreground">
-                    {inspectLog.ipAddress || "127.0.0.1"}
-                  </p>
-                </div>
-
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-mono text-muted-foreground">Timestamp</span>
-                  <p className="text-xs font-mono text-foreground">
-                    {new Date(inspectLog.createdAt).toLocaleString()}
-                  </p>
+                <div className="space-y-1 p-3.5 rounded-2xl bg-surface/30 border border-muted/20">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Target</div>
+                  <div className="text-base font-bold text-foreground">{inspectLog.targetType}</div>
                 </div>
               </div>
 
-              {/* Justification / Reason callout if available */}
-              {(inspectLog.metadata?.editReason || inspectLog.metadata?.deletionReason || inspectLog.metadata?.remarks) && (
-                <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-1">
-                  <span className="text-[11px] font-bold uppercase text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                    <ShieldAlertIcon className="size-3.5" />
-                    Audit Justification / Stated Reason
-                  </span>
-                  <p className="text-xs text-foreground font-medium">
-                    {inspectLog.metadata.editReason || inspectLog.metadata.deletionReason || inspectLog.metadata.remarks}
-                  </p>
+              <div className="space-y-1 p-3.5 rounded-2xl bg-surface/30 border border-muted/20">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actor</div>
+                <div className="text-sm font-semibold text-foreground">
+                  {inspectLog.actorName || inspectLog.actor?.name || "System"} <span className="text-muted-foreground font-normal">({inspectLog.actorEmail || inspectLog.actor?.email})</span>
+                </div>
+              </div>
+
+              {inspectLog.metadata?.editReason && (
+                <div className="space-y-1 p-4 rounded-2xl bg-surface/30 border border-muted/20">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Edit Reason</div>
+                  <div className="text-sm font-medium text-foreground">{inspectLog.metadata.editReason}</div>
                 </div>
               )}
 
-              {/* State Diff / Changes */}
-              {renderStateDiff(inspectLog)}
+              {inspectLog.metadata?.deletionReason && (
+                <div className="space-y-1 p-4 rounded-2xl bg-destructive/10 border border-destructive/20">
+                  <div className="text-xs font-semibold text-destructive uppercase tracking-wider">Deletion Reason</div>
+                  <div className="text-sm font-medium text-destructive">{inspectLog.metadata.deletionReason}</div>
+                </div>
+              )}
 
-              {/* Raw Metadata Details */}
-              <div className="space-y-1.5">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
-                  Raw Event Metadata
-                </span>
-                <pre className="p-3 rounded-lg border border-border bg-muted/60 text-[11px] font-mono overflow-x-auto text-foreground max-h-48">
-                  {JSON.stringify(inspectLog.metadata || {}, null, 2)}
-                </pre>
-              </div>
+              {/* State Diff */}
+              {inspectLog.metadata?.previousState && inspectLog.metadata?.newState && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Field Changes</h3>
+                  <div className="space-y-2">
+                    {Object.keys(inspectLog.metadata.newState).map((key) => {
+                      const oldVal = inspectLog.metadata.previousState[key];
+                      const newVal = inspectLog.metadata.newState[key];
+                      if (String(oldVal) === String(newVal)) return null;
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center justify-between p-3.5 rounded-2xl bg-surface/30 border border-muted/20 text-xs font-mono"
+                        >
+                          <span className="font-bold text-foreground">{key}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground line-through">{String(oldVal ?? "null")}</span>
+                            <ArrowRight className="size-3.5 text-muted-foreground" />
+                            <span className="text-stat-1 font-bold">{String(newVal ?? "null")}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

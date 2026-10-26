@@ -13,14 +13,11 @@ import { exportTransactionsStatementPDF } from "@/lib/pdf/transactions-statement
 import { DataTable } from "@/components/shared/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -44,23 +41,18 @@ import {
   AdminEditFinanceRecordInput,
 } from "@/schemas/finance";
 import {
-  FilterIcon,
-  DownloadIcon,
-  RefreshCwIcon,
-  EditIcon,
-  Trash2Icon,
-  Loader2Icon,
-  SearchIcon,
-  Building2Icon,
-  WalletIcon,
-  LandmarkIcon,
-  ArrowDownIcon,
-  ArrowUpIcon,
-  TagIcon,
-  RotateCcwIcon,
-  ShieldAlertIcon,
-  StoreIcon,
-  FileTextIcon,
+  Filter,
+  Download,
+  RefreshCw,
+  Edit,
+  Trash2,
+  Loader2,
+  Search,
+  ArrowUpRight,
+  RotateCcw,
+  FileText,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
@@ -108,351 +100,259 @@ export function AllTransactionsView({
   const [total, setTotal] = React.useState<number>(initialTotal);
   const [page, setPage] = React.useState<number>(initialPage);
   const [totalPages, setTotalPages] = React.useState<number>(initialTotalPages);
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = React.useState<boolean>(false);
 
-  // Filters
-  const [shopFilter, setShopFilter] = React.useState("ALL");
-  const [typeFilter, setTypeFilter] = React.useState("ALL");
-  const [paymentMethodFilter, setPaymentMethodFilter] = React.useState("ALL");
-  const [bankAccountFilter, setBankAccountFilter] = React.useState("ALL");
-  const [categoryFilter, setCategoryFilter] = React.useState("ALL");
-  const [statusFilter, setStatusFilter] = React.useState("ALL");
-  const [startDate, setStartDate] = React.useState("");
-  const [endDate, setEndDate] = React.useState("");
-  const [search, setSearch] = React.useState("");
+  // Progressive Disclosure: Filters expansion
+  const [showFilters, setShowFilters] = React.useState<boolean>(false);
 
-  // Edit Modal State
-  const [editOpen, setEditOpen] = React.useState(false);
+  // Filter States
+  const [search, setSearch] = React.useState<string>("");
+  const [shopFilter, setShopFilter] = React.useState<string>("ALL");
+  const [categoryFilter, setCategoryFilter] = React.useState<string>("ALL");
+  const [typeFilter, setTypeFilter] = React.useState<string>("ALL");
+  const [paymentMethodFilter, setPaymentMethodFilter] = React.useState<string>("ALL");
+  const [bankAccountFilter, setBankAccountFilter] = React.useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
+  const [startDate, setStartDate] = React.useState<string>("");
+  const [endDate, setEndDate] = React.useState<string>("");
+
+  // Modal States
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null);
-
-  // Delete Modal State
+  const [editOpen, setEditOpen] = React.useState<boolean>(false);
   const [deleteConfirmRecord, setDeleteConfirmRecord] = React.useState<any | null>(null);
-  const [deletionReason, setDeletionReason] = React.useState("");
-  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [deletionReason, setDeletionReason] = React.useState<string>("");
+  const [isDeleting, setIsDeleting] = React.useState<boolean>(false);
 
-  // Bulk Delete State
-  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false);
+  // Bulk Delete Modal
+  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState<boolean>(false);
   const [bulkDeleteCount, setBulkDeleteCount] = React.useState<number | null>(null);
-  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = React.useState("");
-  const [isBulkDeleting, setIsBulkDeleting] = React.useState(false);
-  const [isCheckingEligible, setIsCheckingEligible] = React.useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = React.useState(false);
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = React.useState<string>("");
+  const [isCheckingEligible, setIsCheckingEligible] = React.useState<boolean>(false);
+  const [isBulkDeleting, setIsBulkDeleting] = React.useState<boolean>(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = React.useState<boolean>(false);
+
+  const fetchRecords = React.useCallback(
+    async (targetPage = page) => {
+      setLoading(true);
+      try {
+        const filters: any = { page: targetPage, limit: 25 };
+        if (search.trim()) filters.search = search.trim();
+        if (shopFilter !== "ALL") filters.shop = shopFilter;
+        if (categoryFilter !== "ALL") filters.category = categoryFilter;
+        if (typeFilter !== "ALL") filters.type = typeFilter;
+        if (paymentMethodFilter !== "ALL") filters.paymentMethod = paymentMethodFilter;
+        if (bankAccountFilter !== "ALL") filters.bankAccount = bankAccountFilter;
+        if (statusFilter !== "ALL") filters.status = statusFilter;
+        if (startDate) filters.startDate = startDate;
+        if (endDate) filters.endDate = endDate;
+
+        const res = await getAllTransactionsAdminAction(filters);
+        if (res.success) {
+          setRecords(res.records || []);
+          setTotal(res.total || 0);
+          setPage(res.page || 1);
+          setTotalPages(res.totalPages || 1);
+        } else {
+          toast.create({
+            title: "Error",
+            description: res.error || "Failed to load transactions.",
+            type: "error",
+          });
+        }
+      } catch (err) {
+        console.error("Fetch records error:", err);
+        toast.create({
+          title: "System Error",
+          description: "Could not retrieve transaction records.",
+          type: "error",
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      page,
+      search,
+      shopFilter,
+      categoryFilter,
+      typeFilter,
+      paymentMethodFilter,
+      bankAccountFilter,
+      statusFilter,
+      startDate,
+      endDate,
+    ]
+  );
+
+  const handleApplyFilters = () => {
+    setPage(1);
+    fetchRecords(1);
+  };
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setShopFilter("ALL");
+    setCategoryFilter("ALL");
+    setTypeFilter("ALL");
+    setPaymentMethodFilter("ALL");
+    setBankAccountFilter("ALL");
+    setStatusFilter("ALL");
+    setStartDate("");
+    setEndDate("");
+    setPage(1);
+
+    getAllTransactionsAdminAction({ page: 1, limit: 25 }).then((res) => {
+      if (res.success) {
+        setRecords(res.records || []);
+        setTotal(res.total || 0);
+        setPage(res.page || 1);
+        setTotalPages(res.totalPages || 1);
+      }
+    });
+  };
 
   const editForm = useForm<AdminEditFinanceRecordInput>({
     resolver: zodResolver(adminEditFinanceRecordSchema),
     defaultValues: {
       recordId: "",
-      date: "",
       shop: "",
+      date: "",
+      billNumber: "",
+      type: "EXPENSE",
       category: "",
+      amount: 0,
       paymentMethod: "CASH",
       bankAccount: null,
-      billNumber: "",
       reason: "",
-      amount: 0,
-      type: "EXPENSE",
       status: "PENDING",
       approvedAmount: null,
       editReason: "",
     },
   });
 
-  const fetchRecords = async (targetPage = page) => {
-    setLoading(true);
-    const res = await getAllTransactionsAdminAction({
-      shopId: shopFilter !== "ALL" ? shopFilter : undefined,
-      type: typeFilter !== "ALL" ? typeFilter : undefined,
-      paymentMethod: paymentMethodFilter !== "ALL" ? paymentMethodFilter : undefined,
-      bankAccountId: bankAccountFilter !== "ALL" ? bankAccountFilter : undefined,
-      categoryId: categoryFilter !== "ALL" ? categoryFilter : undefined,
-      status: statusFilter !== "ALL" ? statusFilter : undefined,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      search: search.trim() || undefined,
-      page: targetPage,
-      limit: 25,
-    });
-
-    if (res.success && res.records) {
-      setRecords(res.records);
-      setTotal(res.total || 0);
-      setPage(res.page || 1);
-      setTotalPages(res.totalPages || 1);
-    } else {
-      toast.create({
-        title: "Failed to load transactions",
-        description: res.error || "An error occurred while fetching records",
-        type: "error",
-      });
-    }
-    setLoading(false);
-  };
-
-  const handleApplyFilters = () => {
-    fetchRecords(1);
-  };
-
-  const handleClearFilters = () => {
-    setShopFilter("ALL");
-    setTypeFilter("ALL");
-    setPaymentMethodFilter("ALL");
-    setBankAccountFilter("ALL");
-    setCategoryFilter("ALL");
-    setStatusFilter("ALL");
-    setStartDate("");
-    setEndDate("");
-    setSearch("");
-    // Re-fetch after state reset
-    setTimeout(() => {
-      fetchRecords(1);
-    }, 50);
-  };
-
   const handleOpenEdit = (rec: any) => {
     setEditingRecord(rec);
+    const d = rec.date ? new Date(rec.date).toISOString().split("T")[0] : "";
     editForm.reset({
       recordId: rec._id,
-      date: new Date(rec.date).toISOString().split("T")[0],
-      shop: rec.shop?._id || rec.shop,
-      category: rec.category?._id || rec.category,
+      shop: rec.shop?._id || rec.shop || "",
+      date: d,
+      billNumber: rec.billNumber || "",
+      type: rec.type || "EXPENSE",
+      category: rec.category?._id || rec.category || "",
+      amount: Number(rec.amount || 0),
       paymentMethod: rec.paymentMethod || "CASH",
       bankAccount: rec.bankAccount?._id || rec.bankAccount || null,
-      billNumber: rec.billNumber || "",
       reason: rec.reason || "",
-      amount: Number(rec.amount || 0),
-      type: rec.type || "EXPENSE",
       status: rec.status || "PENDING",
-      approvedAmount: rec.approvedAmount !== null && rec.approvedAmount !== undefined ? Number(rec.approvedAmount) : null,
+      approvedAmount: rec.approvedAmount !== undefined ? rec.approvedAmount : null,
       editReason: "",
     });
     setEditOpen(true);
   };
 
   const onEditSubmit = async (data: AdminEditFinanceRecordInput) => {
-    const res = await adminEditTransactionAction(data);
-    if (res.success) {
+    try {
+      const res = await adminEditTransactionAction(data);
+      if (res.success) {
+        toast.create({
+          title: "Updated",
+          description: "Transaction updated and ledger recalculated.",
+        });
+        setEditOpen(false);
+        fetchRecords(page);
+      } else {
+        toast.create({
+          title: "Update Failed",
+          description: res.error || "Could not save modifications.",
+          type: "error",
+        });
+      }
+    } catch {
       toast.create({
-        title: "Transaction updated",
-        description: res.message || "Record successfully updated and balances reconciled.",
-        type: "success",
-      });
-      setEditOpen(false);
-      fetchRecords(page);
-    } else {
-      toast.create({
-        title: "Update failed",
-        description: res.error || "Failed to update transaction",
+        title: "Error",
+        description: "An unexpected error occurred.",
         type: "error",
       });
     }
   };
 
   const handleDeleteSubmit = async () => {
-    if (!deleteConfirmRecord) return;
-    if (!deletionReason || deletionReason.trim().length < 3) {
-      toast.create({
-        title: "Reason required",
-        description: "Please specify a detailed reason for deleting this transaction.",
-        type: "error",
-      });
-      return;
-    }
-
+    if (!deleteConfirmRecord || deletionReason.trim().length < 3) return;
     setIsDeleting(true);
-    const res = await adminDeleteTransactionAction({
-      recordId: deleteConfirmRecord._id,
-      deletionReason: deletionReason.trim(),
-    });
-
-    if (res.success) {
-      toast.create({
-        title: "Transaction deleted",
-        description: res.message || "Transaction deleted and balances recalculated.",
-        type: "success",
+    try {
+      const res = await adminDeleteTransactionAction({
+        recordId: deleteConfirmRecord._id,
+        deletionReason: deletionReason.trim(),
       });
-      setDeleteConfirmRecord(null);
-      setDeletionReason("");
-      fetchRecords(page);
-    } else {
+      if (res.success) {
+        toast.create({
+          title: "Deleted",
+          description: "Transaction removed and balances restored.",
+        });
+        setDeleteConfirmRecord(null);
+        setDeletionReason("");
+        fetchRecords(page);
+      } else {
+        toast.create({
+          title: "Error",
+          description: res.error || "Could not delete record.",
+          type: "error",
+        });
+      }
+    } catch {
       toast.create({
-        title: "Deletion failed",
-        description: res.error || "Failed to delete transaction",
+        title: "Error",
+        description: "Could not execute safe deletion.",
         type: "error",
       });
+    } finally {
+      setIsDeleting(false);
     }
-    setIsDeleting(false);
   };
 
   const handleOpenBulkDelete = async () => {
     setIsCheckingEligible(true);
-    const res = await adminGetBulkDeleteEligibleCountAction({
-      shopId: shopFilter !== "ALL" ? shopFilter : undefined,
-      type: typeFilter !== "ALL" ? typeFilter : undefined,
-      paymentMethod: paymentMethodFilter !== "ALL" ? paymentMethodFilter : undefined,
-      bankAccountId: bankAccountFilter !== "ALL" ? bankAccountFilter : undefined,
-      categoryId: categoryFilter !== "ALL" ? categoryFilter : undefined,
-      status: statusFilter !== "ALL" ? statusFilter : undefined,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      search: search.trim() || undefined,
-    });
-    setIsCheckingEligible(false);
+    try {
+      const filters: any = {};
+      if (search.trim()) filters.search = search.trim();
+      if (shopFilter !== "ALL") filters.shop = shopFilter;
+      if (categoryFilter !== "ALL") filters.category = categoryFilter;
+      if (typeFilter !== "ALL") filters.type = typeFilter;
+      if (paymentMethodFilter !== "ALL") filters.paymentMethod = paymentMethodFilter;
+      if (bankAccountFilter !== "ALL") filters.bankAccount = bankAccountFilter;
+      if (statusFilter !== "ALL") filters.status = statusFilter;
+      if (startDate) filters.startDate = startDate;
+      if (endDate) filters.endDate = endDate;
 
-    if (res.success && typeof res.count === "number") {
-      setBulkDeleteCount(res.count);
-      setBulkDeleteConfirmation("");
-      setBulkDeleteOpen(true);
-    } else {
+      const res = await adminGetBulkDeleteEligibleCountAction(filters);
+      if (res.success) {
+        setBulkDeleteCount(res.count ?? 0);
+        setBulkDeleteConfirmation("");
+        setBulkDeleteOpen(true);
+      } else {
+        toast.create({
+          title: "Error",
+          description: res.error || "Could not verify eligible records.",
+          type: "error",
+        });
+      }
+    } catch {
       toast.create({
-        title: "Check Failed",
-        description: res.error || "Unable to check eligible records for deletion.",
+        title: "System Error",
+        description: "Failed to determine bulk delete scope.",
         type: "error",
       });
+    } finally {
+      setIsCheckingEligible(false);
     }
   };
 
   const handleBulkDeleteSubmit = async () => {
-    if (bulkDeleteConfirmation !== "PERMANENT DELETE") {
-      toast.create({
-        title: "Confirmation Required",
-        description: 'Please type "PERMANENT DELETE" exactly to confirm.',
-        type: "error",
-      });
-      return;
-    }
-
+    if (bulkDeleteConfirmation !== "PERMANENT DELETE") return;
     setIsBulkDeleting(true);
-    const res = await adminBulkPermanentDeleteTransactionsAction({
-      shopId: shopFilter !== "ALL" ? shopFilter : undefined,
-      type: typeFilter !== "ALL" ? typeFilter : undefined,
-      paymentMethod: paymentMethodFilter !== "ALL" ? paymentMethodFilter : undefined,
-      bankAccountId: bankAccountFilter !== "ALL" ? bankAccountFilter : undefined,
-      categoryId: categoryFilter !== "ALL" ? categoryFilter : undefined,
-      status: statusFilter !== "ALL" ? statusFilter : undefined,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      search: search.trim() || undefined,
-      confirmationPhrase: bulkDeleteConfirmation,
-    });
-
-    if (res.success) {
-      toast.create({
-        title: "Permanent Deletion Complete",
-        description: res.message,
-        type: "success",
-      });
-      setBulkDeleteOpen(false);
-      setBulkDeleteConfirmation("");
-      fetchRecords(1);
-    } else {
-      toast.create({
-        title: "Deletion Failed",
-        description: res.error || "Could not permanently delete records.",
-        type: "error",
-      });
-    }
-    setIsBulkDeleting(false);
-  };
-
-  const handleExportCSV = () => {
-    if (records.length === 0) {
-      toast.create({
-        title: "No records to export",
-        description: "There are currently no transactions matching your filter criteria.",
-        type: "warning",
-      });
-      return;
-    }
-
-    const headers = [
-      "Date",
-      "Time",
-      "Branch",
-      "Branch Type",
-      "Bill Number",
-      "Category",
-      "Type",
-      "Payment Method",
-      "Bank Account",
-      "Reason / Note",
-      "Communication Item Code",
-      "Communication Item Name",
-      "Quantity",
-      "Related Branch",
-      "Unit Cost (LKR)",
-      "Unit Selling Price (LKR)",
-      "Discount (LKR)",
-      "Net Amount (LKR)",
-      "Approved Amount (LKR)",
-      "Current Balance (LKR)",
-      "Status",
-      "Created By",
-      "Reviewed By",
-    ];
-
-    const rows = records.map((r) => [
-      new Date(r.createdAt || r.date).toLocaleDateString(),
-      new Date(r.createdAt || r.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-      r.shop?.name || "N/A",
-      r.shop?.shopType || "STANDARD",
-      r.billNumber || "",
-      r.category?.name || "Uncategorized",
-      r.type || "",
-      r.paymentMethod || "",
-      r.bankAccount ? `${r.bankAccount.bankName} - ${r.bankAccount.accountNumber}` : "",
-      r.reason || "",
-      r.itemCode || "",
-      r.itemName || "",
-      r.quantity || 1,
-      r.relatedBranch?.name || "",
-      r.actualPrice !== undefined ? Number(r.actualPrice).toFixed(2) : "",
-      r.sellingPrice !== undefined ? Number(r.sellingPrice).toFixed(2) : "",
-      r.discountPrice !== undefined ? Number(r.discountPrice).toFixed(2) : "",
-      Number(r.amount || 0).toFixed(2),
-      r.approvedAmount !== null && r.approvedAmount !== undefined ? Number(r.approvedAmount).toFixed(2) : "",
-      r.runningBalance !== undefined && r.runningBalance !== null ? Number(r.runningBalance).toFixed(2) : "",
-      r.status || "",
-      r.createdBy?.name || r.createdBy?.email || "Unknown",
-      r.reviewedBy?.name || r.reviewedBy?.email || "",
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [
-        headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(","),
-        ...rows.map((row) =>
-          row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(",")
-        ),
-      ].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `all-transactions-report-${new Date().toISOString().split("T")[0]}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.create({
-      title: "CSV Exported",
-      description: `Exported ${records.length} transactions successfully.`,
-      type: "success",
-    });
-  };
-
-  const handleDownloadStatementPDF = async () => {
     try {
-      setIsGeneratingPdf(true);
-      toast.create({
-        title: "Preparing Statement PDF...",
-        description: "Compiling filtered transactions ledger and computing summary metrics.",
-        type: "info",
-      });
-
-      const res = await getFilteredTransactionsForPdfAction({
+      const res = await adminBulkPermanentDeleteTransactionsAction({
         shopId: shopFilter !== "ALL" ? shopFilter : undefined,
         type: typeFilter !== "ALL" ? typeFilter : undefined,
         paymentMethod: paymentMethodFilter !== "ALL" ? paymentMethodFilter : undefined,
@@ -462,35 +362,117 @@ export function AllTransactionsView({
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         search: search.trim() || undefined,
+        confirmationPhrase: bulkDeleteConfirmation,
       });
 
-      if (!res.success || !res.records || res.records.length === 0) {
+      if (res.success) {
         toast.create({
-          title: "No records found",
-          description: res.error || "There are no transactions matching your active filter criteria.",
-          type: "warning",
+          title: "Completed",
+          description: `Permanently removed ${res.deletedCount} transaction(s).`,
         });
-        setIsGeneratingPdf(false);
+        setBulkDeleteOpen(false);
+        setBulkDeleteConfirmation("");
+        fetchRecords(1);
+      } else {
+        toast.create({
+          title: "Failed",
+          description: res.error || "Bulk deletion failed.",
+          type: "error",
+        });
+      }
+    } catch {
+      toast.create({
+        title: "Error",
+        description: "An unexpected error occurred during execution.",
+        type: "error",
+      });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (!records.length) {
+      toast.create({ title: "Export empty", description: "No records to export." });
+      return;
+    }
+
+    const headers = [
+      "Date",
+      "Branch",
+      "Bill Number",
+      "Category",
+      "Type",
+      "Payment Method",
+      "Amount",
+      "Status",
+      "Reason",
+    ];
+
+    const rows = records.map((r) => [
+      new Date(r.date).toLocaleDateString(),
+      r.shop?.name || "",
+      r.billNumber,
+      r.category?.name || "",
+      r.type,
+      r.paymentMethod,
+      r.amount,
+      r.status,
+      `"${(r.reason || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Transactions_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadStatementPDF = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const filters: any = {};
+      if (search.trim()) filters.search = search.trim();
+      if (shopFilter !== "ALL") filters.shopId = shopFilter;
+      if (categoryFilter !== "ALL") filters.categoryId = categoryFilter;
+      if (typeFilter !== "ALL") filters.type = typeFilter;
+      if (paymentMethodFilter !== "ALL") filters.paymentMethod = paymentMethodFilter;
+      if (bankAccountFilter !== "ALL") filters.bankAccountId = bankAccountFilter;
+      if (statusFilter !== "ALL") filters.status = statusFilter;
+      if (startDate) filters.startDate = startDate;
+      if (endDate) filters.endDate = endDate;
+
+      const res = await getFilteredTransactionsForPdfAction(filters);
+      if (!res.success || !res.records || !res.summary || !res.appliedFilters) {
+        toast.create({
+          title: "PDF Error",
+          description: res.error || "Could not retrieve records for PDF.",
+          type: "error",
+        });
         return;
       }
 
-      exportTransactionsStatementPDF({
+      await exportTransactionsStatementPDF({
         records: res.records,
-        summary: res.summary!,
-        filters: res.appliedFilters!,
-        generatedBy: "Administrator",
+        summary: res.summary,
+        filters: res.appliedFilters,
       });
 
       toast.create({
-        title: "Statement Downloaded",
-        description: `Successfully exported official statement with ${res.records.length} records.`,
-        type: "success",
+        title: "Export Complete",
+        description: "Statement PDF generated successfully.",
       });
-    } catch (err: any) {
-      console.error("PDF generation failed:", err);
+    } catch (err) {
+      console.error("PDF generation error:", err);
       toast.create({
         title: "PDF Generation Failed",
-        description: err?.message || "An unexpected error occurred while generating PDF.",
+        description: "An unexpected error occurred while compiling PDF.",
         type: "error",
       });
     } finally {
@@ -501,51 +483,30 @@ export function AllTransactionsView({
   const columns: ColumnDef<any>[] = [
     {
       accessorKey: "date",
-      header: "Date & Time",
+      header: "Date",
       cell: ({ row }) => {
-        const rawDate = row.original.createdAt || row.original.date;
-        const d = new Date(rawDate);
+        const d = new Date(row.original.createdAt || row.original.date);
         return (
-          <div className="flex flex-col">
-            <span className="font-mono text-xs whitespace-nowrap">
-              {d.toLocaleDateString()}
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-              {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })}
-            </span>
-          </div>
+          <span className="font-mono text-base font-semibold text-foreground whitespace-nowrap">
+            {d.toLocaleDateString()}
+          </span>
         );
       },
     },
     {
       accessorKey: "shop.name",
       header: "Branch",
-      cell: ({ row }) => {
-        const shop = row.original.shop;
-        return (
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-foreground">
-              {shop?.name || "Unknown Branch"}
-            </span>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="text-[10px] font-mono text-muted-foreground">
-                {shop?.code || ""}
-              </span>
-              {shop?.shopType === "COMMUNICATION" && (
-                <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-mono">
-                  COMM
-                </Badge>
-              )}
-            </div>
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <span className="text-base font-bold text-foreground">
+          {row.original.shop?.name || "Global"}
+        </span>
+      ),
     },
     {
       accessorKey: "billNumber",
       header: "Bill No",
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold text-primary">
+        <span className="font-mono text-base font-bold text-stat-1">
           {row.original.billNumber}
         </span>
       ),
@@ -554,162 +515,43 @@ export function AllTransactionsView({
       accessorKey: "category.name",
       header: "Category",
       cell: ({ row }) => (
-        <div className="max-w-[150px]">
-          <CategoryBadge
-            name={row.original.category?.name || "Uncategorized"}
-            colorToken={row.original.category?.colorToken}
-          />
-        </div>
+        <CategoryBadge
+          name={row.original.category?.name || "General"}
+          colorToken={row.original.category?.colorToken}
+        />
       ),
     },
     {
       accessorKey: "paymentMethod",
-      header: "Method / Account",
-      cell: ({ row }) => {
-        const method = row.original.paymentMethod;
-        const bank = row.original.bankAccount;
-        return (
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1">
-              {method === "PETTY_CASH" && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                  <WalletIcon className="size-2.5 mr-1" />
-                  PETTY CASH
-                </Badge>
-              )}
-              {method === "CASH" && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
-                  CASH
-                </Badge>
-              )}
-              {method !== "PETTY_CASH" && method !== "CASH" && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
-                  {method}
-                </Badge>
-              )}
-            </div>
-            {bank && (
-              <span className="text-[10px] text-muted-foreground mt-0.5 font-mono truncate max-w-[130px]">
-                {bank.bankName} (...{String(bank.accountNumber).slice(-4)})
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "reason",
-      header: "Details / Item",
-      cell: ({ row }) => {
-        const r = row.original;
-        const hasCommItem = Boolean(r.itemCode || r.itemName);
-        return (
-          <div className="max-w-[200px] space-y-0.5">
-            {hasCommItem && (
-              <div className="flex items-center gap-1">
-                <Badge variant="secondary" className="text-[9px] font-mono px-1 py-0 h-3.5">
-                  {r.itemCode || "ITEM"}
-                </Badge>
-                <span className="text-xs font-semibold truncate text-foreground">
-                  {r.itemName}
-                </span>
-                {r.quantity && r.quantity > 1 && (
-                  <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 h-3.5 bg-muted">
-                    ×{r.quantity}
-                  </Badge>
-                )}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground truncate" title={r.reason}>
-              {r.reason}
-            </p>
-            {(r.isCrossBranchPayment || (r.isRelatedToBranch && r.relatedBranch)) && (() => {
-              const isBranchExpense = r.type === "EXPENSE" || Boolean(r.isCommunicationItem);
-              return (
-                <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                  <span className={`inline-flex text-[9px] font-medium px-1.5 py-0.5 rounded border ${
-                    isBranchExpense
-                      ? "text-amber-800 dark:text-amber-300 bg-amber-500/10 border-amber-500/20"
-                      : "text-blue-700 dark:text-blue-300 bg-blue-500/10 border-blue-500/20"
-                  }`}>
-                    {isBranchExpense ? "Inter-Branch Expense: For " : "Cross-Branch: For "}
-                    {r.beneficiaryShop?.name || r.relatedBranch?.name}
-                  </span>
-                  {r.interBranchSettlementStatus && (
-                    <span className={`inline-flex text-[8px] font-mono px-1 py-0.5 rounded border ${
-                      r.interBranchSettlementStatus === "SETTLED"
-                        ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/20"
-                        : "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20"
-                    }`}>
-                      {r.interBranchSettlementStatus === "SETTLED" ? "Settled" : "Unsettled"}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        );
-      },
+      header: "Method",
+      cell: ({ row }) => (
+        <span className="text-base font-medium text-foreground">
+          {row.original.paymentMethod.replace(/_/g, " ")}
+        </span>
+      ),
     },
     {
       accessorKey: "type",
-      header: "Type",
-      cell: ({ row }) => {
-        const isIncome = row.original.type === "INCOME";
-        return (
-          <span
-            className={`inline-flex items-center gap-1 text-xs font-semibold ${
-              isIncome
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-rose-600 dark:text-rose-400"
-            }`}
-          >
-            {isIncome ? <ArrowDownIcon className="size-3" /> : <ArrowUpIcon className="size-3" />}
-            {isIncome ? "Income" : "Expense"}
-          </span>
-        );
-      },
+      header: "Flow",
+      cell: ({ row }) => (
+        <span
+          className={`text-base font-bold ${
+            row.original.type === "INCOME" ? "text-stat-1" : "text-foreground"
+          }`}
+        >
+          {row.original.type === "INCOME" ? "Inflow" : "Outflow"}
+        </span>
+      ),
     },
     {
       accessorKey: "amount",
-      header: "Amount (LKR)",
+      header: "Amount",
       cell: ({ row }) => {
         const amt = Number(row.original.amount || 0);
-        const appAmt = row.original.approvedAmount;
-        const hasDiff = appAmt !== null && appAmt !== undefined && appAmt !== amt;
-
         return (
-          <div className="flex flex-col text-right">
-            <span className="font-mono text-xs font-semibold">
-              {amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            {hasDiff && (
-              <span className="text-[10px] font-mono text-muted-foreground">
-                Appr: {Number(appAmt).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "runningBalance",
-      header: "Current Balance",
-      cell: ({ row }) => {
-        const bal = row.original.runningBalance;
-        if (bal === undefined || bal === null) {
-          return <span className="text-muted-foreground text-xs font-mono">-</span>;
-        }
-        return (
-          <div className="flex flex-col text-right">
-            <span
-              className={`font-mono text-xs font-semibold ${
-                bal >= 0 ? "text-foreground" : "text-destructive"
-              }`}
-            >
-              LKR {Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
+          <span className="font-mono text-base font-bold text-foreground">
+            LKR {amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </span>
         );
       },
     },
@@ -724,25 +566,21 @@ export function AllTransactionsView({
       cell: ({ row }) => {
         const rec = row.original;
         return (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
+          <div className="flex items-center gap-2">
+            <button
               onClick={() => handleOpenEdit(rec)}
-              className="size-7 p-0 text-muted-foreground hover:text-foreground"
-              title="Edit Transaction"
+              className="p-2 rounded-xl text-foreground hover:bg-surface/50 transition-colors"
+              title="Edit"
             >
-              <EditIcon className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+              <Edit className="size-5" />
+            </button>
+            <button
               onClick={() => setDeleteConfirmRecord(rec)}
-              className="size-7 p-0 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
-              title="Delete Transaction"
+              className="p-2 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
+              title="Delete"
             >
-              <Trash2Icon className="size-3.5" />
-            </Button>
+              <Trash2 className="size-5" />
+            </button>
           </div>
         );
       },
@@ -750,285 +588,253 @@ export function AllTransactionsView({
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            All Transactions
+    <div className="space-y-10">
+      {/* Top Header */}
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+            Transactions
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Central repository of transactions across all branches, petty cash, and bank accounts.
+          <p className="text-base text-muted-foreground">
+            Unified Central Ledger
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => fetchRecords(page)}
             disabled={loading}
-            className="h-8 text-xs font-medium"
+            className="h-14 rounded-2xl bg-surface/40 hover:bg-surface/70 border border-muted/20 text-foreground text-base font-semibold px-5 gap-2.5"
           >
-            <RefreshCwIcon className={`size-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} />
+            <span>Sync</span>
           </Button>
 
           <Button
             variant="outline"
-            size="sm"
             onClick={handleDownloadStatementPDF}
             disabled={isGeneratingPdf}
-            className="h-8 text-xs font-medium border-rose-200 bg-rose-50/70 text-rose-700 hover:bg-rose-100 hover:text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"
+            className="h-14 rounded-2xl bg-surface/40 hover:bg-surface/70 border border-muted/20 text-foreground text-base font-semibold px-5 gap-2.5"
           >
-            {isGeneratingPdf ? (
-              <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <FileTextIcon className="size-3.5 mr-1.5 text-rose-600 dark:text-rose-400" />
-            )}
-            Download Statement (PDF)
+            {isGeneratingPdf ? <Loader2 className="size-5 animate-spin" /> : <FileText className="size-5" />}
+            <span>PDF</span>
           </Button>
 
           <Button
-            variant="default"
-            size="sm"
             onClick={handleExportCSV}
-            className="h-8 text-xs font-medium"
+            className="h-14 rounded-2xl bg-surface/50 hover:bg-surface/80 border border-muted/20 text-foreground text-base font-semibold px-5 gap-2.5"
           >
-            <DownloadIcon className="size-3.5 mr-1.5" />
-            Export Filtered CSV
+            <Download className="size-5" />
+            <span>CSV</span>
           </Button>
         </div>
       </div>
 
-      {/* Filters Card */}
-      <Card className="border border-border/80 bg-card shadow-sm">
-        <CardHeader className="pb-3 pt-4 px-4 border-b border-border/40">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FilterIcon className="size-4 text-primary" />
-              <CardTitle className="text-sm font-semibold">Filter Transactions</CardTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearFilters}
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcwIcon className="size-3 mr-1" />
-              Reset Filters
-            </Button>
+      {/* Main Search & Progressive Filters */}
+      <div className="glass-panel rounded-3xl p-6 sm:p-8 space-y-6 border-muted/20 shadow-lg">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-4 size-5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search bill number or item..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
+              className="h-14 rounded-2xl bg-surface/30 border-muted/30 pl-12 pr-4 text-base font-medium placeholder:text-muted-foreground/60 focus:border-foreground/50"
+            />
           </div>
-        </CardHeader>
-        <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {/* Search Input */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Search
-              </label>
-              <div className="relative">
-                <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Bill, reason, item code..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
-                  className="h-8 text-xs pl-8 font-medium"
-                />
+
+          <Button
+            type="button"
+            onClick={() => setShowFilters(!showFilters)}
+            className="h-14 rounded-2xl bg-surface/50 hover:bg-surface/80 text-foreground border border-muted/20 text-base font-semibold px-6 justify-between gap-3"
+          >
+            <span className="flex items-center gap-2.5">
+              <Filter className="size-5" />
+              <span>Filters</span>
+            </span>
+            {showFilters ? <ChevronUp className="size-5" /> : <ChevronDown className="size-5" />}
+          </Button>
+
+          <Button
+            type="button"
+            onClick={handleApplyFilters}
+            disabled={loading}
+            className="h-14 rounded-2xl bg-foreground text-background hover:opacity-90 text-base font-semibold px-8"
+          >
+            {loading ? <Loader2 className="size-5 animate-spin" /> : "Apply"}
+          </Button>
+        </div>
+
+        {/* Expandable Filter Grid (Progressive Disclosure) */}
+        {showFilters && (
+          <div className="pt-6 border-t border-muted/20 space-y-6 animate-in fade-in-50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Branch
+                </label>
+                <select
+                  value={shopFilter}
+                  onChange={(e) => setShopFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Branches</option>
+                  {shops.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Flow
+                </label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Flows</option>
+                  <option value="INCOME">Inflow (+)</option>
+                  <option value="EXPENSE">Outflow (-)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Status
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Method
+                </label>
+                <select
+                  value={paymentMethodFilter}
+                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Methods</option>
+                  <option value="CASH">Cash</option>
+                  <option value="PETTY_CASH">Petty Cash</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CHEQUE">Cheque</option>
+                  <option value="ONLINE">Online</option>
+                </select>
               </div>
             </div>
 
-            {/* Shop Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Branch / Shop
-              </label>
-              <select
-                value={shopFilter}
-                onChange={(e) => setShopFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Branches</option>
-                {shops.map((s) => (
-                  <option key={s._id} value={s._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                    {s.name} ({s.code}) {s.shopType === "COMMUNICATION" ? "[Comm]" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Bank Account
+                </label>
+                <select
+                  value={bankAccountFilter}
+                  onChange={(e) => setBankAccountFilter(e.target.value)}
+                  className="w-full h-14 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-base font-medium outline-none focus:border-foreground/50"
+                >
+                  <option value="ALL">All Accounts</option>
+                  {bankAccounts.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.bankName} - {b.accountNumber}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Type Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Type
-              </label>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Types</option>
-                <option value="INCOME" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Income (+)</option>
-                <option value="EXPENSE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Expense (-)</option>
-              </select>
-            </div>
-
-            {/* Status Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Statuses</option>
-                <option value="PENDING" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Pending</option>
-                <option value="APPROVED" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Approved</option>
-                <option value="REJECTED" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Rejected</option>
-              </select>
-            </div>
-
-            {/* Payment Method Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Payment Method
-              </label>
-              <select
-                value={paymentMethodFilter}
-                onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Methods</option>
-                <option value="CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cash</option>
-                <option value="PETTY_CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash</option>
-                <option value="BANK_TRANSFER" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Bank Transfer</option>
-                <option value="CHEQUE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cheque</option>
-                <option value="ONLINE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Online</option>
-              </select>
-            </div>
-
-            {/* Bank Account Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Bank Account
-              </label>
-              <select
-                value={bankAccountFilter}
-                onChange={(e) => setBankAccountFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Accounts</option>
-                {bankAccounts.map((b) => (
-                  <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                    {b.bankName} - {b.accountNumber}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Category Filter */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Category
-              </label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full h-8 rounded-md border border-border bg-card text-foreground px-2.5 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-              >
-                <option value="ALL" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c._id} value={c._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                    {c.name} ({c.type})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date Range Inputs */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Date Range
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Date From
+                </label>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-8 text-[11px] px-2"
-                  placeholder="From"
+                  className="h-14 rounded-2xl bg-surface/40 border-muted/30 px-4 text-base font-medium"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold text-foreground">
+                  Date To
+                </label>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-8 text-[11px] px-2"
-                  placeholder="To"
+                  className="h-14 rounded-2xl bg-surface/40 border-muted/30 px-4 text-base font-medium"
                 />
               </div>
             </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-muted/20">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleOpenBulkDelete}
+                disabled={loading || isCheckingEligible}
+                className="h-12 rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 text-base font-semibold px-5 gap-2"
+              >
+                {isCheckingEligible ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                <span>Delete Filtered Records</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleClearFilters}
+                className="h-12 rounded-xl text-base font-semibold text-muted-foreground hover:text-foreground px-5 gap-2"
+              >
+                <RotateCcw className="size-4" />
+                <span>Reset</span>
+              </Button>
+            </div>
           </div>
+        )}
+      </div>
 
-          <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={handleOpenBulkDelete}
-              disabled={loading || isCheckingEligible}
-              className="h-8 px-3 text-xs font-semibold gap-1.5"
-            >
-              {isCheckingEligible ? (
-                <Loader2Icon className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2Icon className="size-3.5" />
-              )}
-              <span>Delete Filtered Records (Permanently)</span>
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={handleApplyFilters}
-              disabled={loading}
-              className="h-8 px-4 text-xs font-semibold"
-            >
-              {loading ? <Loader2Icon className="size-3.5 animate-spin mr-1.5" /> : <FilterIcon className="size-3.5 mr-1.5" />}
-              Apply Filters
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Transactions Data Table */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+      {/* Ledger Table Section */}
+      <div className="glass-panel rounded-3xl p-6 sm:p-10 space-y-6 border-muted/20 shadow-lg">
+        <div className="flex items-center justify-between text-base font-semibold text-muted-foreground">
           <span>
-            Showing <strong className="text-foreground">{records.length}</strong> of{" "}
-            <strong className="text-foreground">{total}</strong> total transactions
+            <strong className="text-foreground">{records.length}</strong> of{" "}
+            <strong className="text-foreground">{total}</strong> records
           </span>
+
           {totalPages > 1 && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
-                size="sm"
                 disabled={page <= 1 || loading}
                 onClick={() => fetchRecords(page - 1)}
-                className="h-7 px-2.5 text-xs"
+                className="h-11 rounded-xl px-4 text-base font-medium border-muted/20"
               >
                 Previous
               </Button>
-              <span className="font-mono text-xs px-1">
+              <span className="font-mono text-base font-bold text-foreground">
                 {page} / {totalPages}
               </span>
               <Button
                 variant="outline"
-                size="sm"
                 disabled={page >= totalPages || loading}
                 onClick={() => fetchRecords(page + 1)}
-                className="h-7 px-2.5 text-xs"
+                className="h-11 rounded-xl px-4 text-base font-medium border-muted/20"
               >
                 Next
               </Button>
@@ -1040,167 +846,141 @@ export function AllTransactionsView({
           columns={columns}
           data={records}
           searchKey="billNumber"
-          searchPlaceholder="Quick filter bill number in current page..."
+          searchPlaceholder="Quick filter bill number..."
           loading={loading}
         />
       </div>
 
-      {/* ADMIN EDIT TRANSACTION MODAL */}
+      {/* EDIT MODAL */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <EditIcon className="size-4 text-primary" />
-              Edit Transaction (Admin Override)
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Modify Transaction
             </DialogTitle>
-            <DialogDescription>
-              Modifying this record will automatically recalculate branch balances and re-balance petty cash / bank accounts if applicable.
-            </DialogDescription>
+            <p className="text-sm text-muted-foreground font-normal">
+              Adjust transaction metadata, status, or accounting amounts with audit traceability.
+            </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
                   Date
                 </label>
-                <Input type="date" {...editForm.register("date")} className="h-9 text-xs" />
-                {editForm.formState.errors.date && (
-                  <p className="text-[11px] text-destructive">{editForm.formState.errors.date.message}</p>
-                )}
+                <Input
+                  type="date"
+                  {...editForm.register("date")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
+                />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
                   Bill Number
                 </label>
-                <Input {...editForm.register("billNumber")} className="h-9 text-xs font-mono" />
-                {editForm.formState.errors.billNumber && (
-                  <p className="text-[11px] text-destructive">{editForm.formState.errors.billNumber.message}</p>
-                )}
+                <Input
+                  {...editForm.register("billNumber")}
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Branch / Shop
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Branch
                 </label>
                 <select
                   {...editForm.register("shop")}
-                  className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
                   {shops.map((s) => (
-                    <option key={s._id} value={s._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+                    <option key={s._id} value={s._id}>
                       {s.name} ({s.code})
                     </option>
                   ))}
                 </select>
-                {editForm.formState.errors.shop && (
-                  <p className="text-[11px] text-destructive">{editForm.formState.errors.shop.message}</p>
-                )}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
                   Category
                 </label>
                 <select
                   {...editForm.register("category")}
-                  className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
                   {categories.map((c) => (
-                    <option key={c._id} value={c._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                      {c.name} ({c.type})
+                    <option key={c._id} value={c._id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>
-                {editForm.formState.errors.category && (
-                  <p className="text-[11px] text-destructive">{editForm.formState.errors.category.message}</p>
-                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Type
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Flow
                 </label>
                 <select
                   {...editForm.register("type")}
-                  className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
-                  <option value="EXPENSE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">EXPENSE (-)</option>
-                  <option value="INCOME" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">INCOME (+)</option>
+                  <option value="EXPENSE">Outflow (-)</option>
+                  <option value="INCOME">Inflow (+)</option>
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Payment Method
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Method
                 </label>
                 <select
                   {...editForm.register("paymentMethod")}
-                  className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
-                  <option value="CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cash</option>
-                  <option value="PETTY_CASH" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Petty Cash</option>
-                  <option value="BANK_TRANSFER" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Bank Transfer</option>
-                  <option value="CHEQUE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Cheque</option>
-                  <option value="ONLINE" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Online</option>
+                  <option value="CASH">Cash</option>
+                  <option value="PETTY_CASH">Petty Cash</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CHEQUE">Cheque</option>
+                  <option value="ONLINE">Online</option>
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Bank Account
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Status
                 </label>
                 <select
-                  {...editForm.register("bankAccount")}
-                  className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                  {...editForm.register("status")}
+                  className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
-                  <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">None</option>
-                  {bankAccounts.map((b) => (
-                    <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                      {b.bankName} ({b.accountNumber.slice(-4)})
-                    </option>
-                  ))}
+                  <option value="PENDING">PENDING</option>
+                  <option value="APPROVED">APPROVED</option>
+                  <option value="REJECTED">REJECTED</option>
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
                   Amount (LKR)
                 </label>
                 <Input
                   type="number"
                   step="any"
                   {...editForm.register("amount", { valueAsNumber: true })}
-                  className="h-9 text-xs font-mono font-semibold"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
                 />
-                {editForm.formState.errors.amount && (
-                  <p className="text-[11px] text-destructive">{editForm.formState.errors.amount.message}</p>
-                )}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Status
-                </label>
-                <select
-                  {...editForm.register("status")}
-                  className="w-full h-9 rounded-md border border-border bg-card text-foreground px-3 text-xs font-medium outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-                >
-                  <option value="PENDING" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">PENDING</option>
-                  <option value="APPROVED" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">APPROVED</option>
-                  <option value="REJECTED" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">REJECTED</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
                   Approved Amount
                 </label>
                 <Input
@@ -1210,53 +990,53 @@ export function AllTransactionsView({
                   {...editForm.register("approvedAmount", {
                     setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
                   })}
-                  className="h-9 text-xs font-mono"
+                  className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase">
-                Description / Reason
-              </label>
-              <Textarea {...editForm.register("reason")} className="text-xs" rows={2} />
-              {editForm.formState.errors.reason && (
-                <p className="text-[11px] text-destructive">{editForm.formState.errors.reason.message}</p>
-              )}
-            </div>
-
-            {/* MANDATORY EDIT AUDIT REASON */}
-            <div className="space-y-1 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
-              <label className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase flex items-center gap-1.5">
-                <ShieldAlertIcon className="size-3.5" />
-                Reason for Edit (Mandatory for Audit Trail)
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Audit Reason
               </label>
               <Input
-                placeholder="Explain why you are modifying this transaction..."
+                placeholder="Reason for modifying this ledger entry..."
                 {...editForm.register("editReason")}
-                className="h-8 text-xs bg-background"
+                className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
               />
               {editForm.formState.errors.editReason && (
-                <p className="text-[11px] text-destructive font-medium">
+                <p className="text-xs font-medium text-destructive">
                   {editForm.formState.errors.editReason.message}
                 </p>
               )}
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(false)}>
+            <DialogFooter className="gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditOpen(false)}
+                className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+              >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={editForm.formState.isSubmitting}>
-                {editForm.formState.isSubmitting && <Loader2Icon className="size-3.5 animate-spin mr-1" />}
-                Save and Reconcile
+              <Button
+                type="submit"
+                disabled={editForm.formState.isSubmitting}
+                className="h-12 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm px-8"
+              >
+                {editForm.formState.isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <span>Save Changes</span>
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* ADMIN DELETE ALERT DIALOG */}
+      {/* SAFE DELETE ALERT DIALOG */}
       <AlertDialog
         open={!!deleteConfirmRecord}
         onOpenChange={(open) => {
@@ -1266,56 +1046,48 @@ export function AllTransactionsView({
           }
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2Icon className="size-4" />
-              Delete Transaction Permanently?
+        <AlertDialogContent className="sm:max-w-md glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-2xl font-bold tracking-tight text-destructive">
+              Delete Transaction
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to soft-delete transaction{" "}
-              <span className="font-mono font-semibold text-foreground">
-                {deleteConfirmRecord?.billNumber}
-              </span>{" "}
-              amounting to{" "}
-              <span className="font-mono font-semibold text-foreground">
-                LKR {Number(deleteConfirmRecord?.amount || 0).toLocaleString()}
-              </span>
-              .
+            <AlertDialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              Confirm deletion of bill {deleteConfirmRecord?.billNumber} (LKR{" "}
+              {Number(deleteConfirmRecord?.amount || 0).toLocaleString()}).
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            This will reverse any impact on the branch running balance, petty cash float, or bank balance, and create an immutable audit record.
-          </p>
-
-          <div className="space-y-1.5 py-2">
-            <label className="text-xs font-semibold text-foreground uppercase">
-              Mandatory Deletion Reason
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              Reason
             </label>
             <Input
-              placeholder="E.g. Duplicate entry, erroneous deposit, cancelled order..."
+              placeholder="Reason for deletion..."
               value={deletionReason}
               onChange={(e) => setDeletionReason(e.target.value)}
-              className="text-xs font-medium"
+              className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
             />
           </div>
 
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-3 pt-4">
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteSubmit}
               disabled={isDeleting || deletionReason.trim().length < 3}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-12 rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90 text-sm font-semibold px-6"
             >
-              {isDeleting ? <Loader2Icon className="size-3.5 animate-spin mr-1" /> : null}
-              Confirm Safe Delete
+              {isDeleting ? <Loader2 className="size-4 animate-spin" /> : "Confirm Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* BULK PERMANENT DELETE DIALOG */}
+      {/* BULK DELETE DIALOG */}
       <AlertDialog
         open={bulkDeleteOpen}
         onOpenChange={(open) => {
@@ -1325,91 +1097,53 @@ export function AllTransactionsView({
           }
         }}
       >
-        <AlertDialogContent className="sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2Icon className="size-5" />
-              <span>Permanently Delete Filtered Transactions</span>
+        <AlertDialogContent className="sm:max-w-md glass-panel border border-muted/30 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-2xl font-bold tracking-tight text-destructive">
+              Bulk Permanent Delete
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
-              Permanently remove matching transactions dated prior to October 01, 2026.
+            <AlertDialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              Permanently delete {bulkDeleteCount ?? 0} filtered records prior to cutoff date.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="space-y-3 py-1 text-xs">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-1.5 text-foreground">
-              <div className="font-semibold text-destructive flex items-center gap-1.5">
-                <ShieldAlertIcon className="size-4 shrink-0" />
-                <span>Permanent Action (Hard Delete)</span>
-              </div>
-              <p className="text-muted-foreground leading-relaxed">
-                This action will <strong className="text-destructive">PERMANENTLY remove</strong> all matching transactions dated prior to October 01, 2026.
-              </p>
-              <div className="text-[11px] font-medium text-primary bg-background/80 px-2.5 py-1.5 rounded border border-border/60">
-                🛡️ <strong>Safety Protection:</strong> Transactions on or after October 01, 2026 (today) are strictly preserved and cannot be deleted.
-              </div>
+          {bulkDeleteCount && bulkDeleteCount > 0 ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Type PERMANENT DELETE to confirm:
+              </label>
+              <Input
+                placeholder="PERMANENT DELETE"
+                value={bulkDeleteConfirmation}
+                onChange={(e) => setBulkDeleteConfirmation(e.target.value)}
+                className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
+              />
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No matching records eligible for bulk deletion.
+            </p>
+          )}
 
-            <div className="space-y-1 border-t border-border/60 pt-2 text-muted-foreground">
-              <div className="flex justify-between">
-                <span>Eligible records to delete:</span>
-                <span className="font-mono font-bold text-destructive">{bulkDeleteCount ?? 0}</span>
-              </div>
-              {startDate && (
-                <div className="flex justify-between">
-                  <span>From Date:</span>
-                  <span className="font-mono text-foreground">{startDate}</span>
-                </div>
-              )}
-              {endDate && (
-                <div className="flex justify-between">
-                  <span>To Date:</span>
-                  <span className="font-mono text-foreground">{endDate}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Branch:</span>
-                <span className="font-medium text-foreground">
-                  {shopFilter === "ALL" ? "All Branches" : shops.find((s) => s._id === shopFilter)?.name || shopFilter}
-                </span>
-              </div>
-            </div>
-
-            {bulkDeleteCount === 0 ? (
-              <p className="text-center font-semibold text-muted-foreground py-2">
-                No records matching the filter dated prior to October 01, 2026 were found.
-              </p>
-            ) : (
-              <div className="space-y-2 pt-1">
-                <label className="text-xs font-semibold text-foreground">
-                  Type <span className="font-mono text-destructive select-all">PERMANENT DELETE</span> to confirm:
-                </label>
-                <Input
-                  placeholder="PERMANENT DELETE"
-                  value={bulkDeleteConfirmation}
-                  onChange={(e) => setBulkDeleteConfirmation(e.target.value)}
-                  className="text-xs font-mono font-semibold"
-                  disabled={isBulkDeleting}
-                />
-              </div>
-            )}
-          </div>
-
-          <AlertDialogFooter className="gap-2 sm:gap-0">
-            <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-3 pt-4">
+            <AlertDialogCancel
+              disabled={isBulkDeleting}
+              className="h-12 rounded-2xl text-sm px-6 border-muted/30"
+            >
+              Cancel
+            </AlertDialogCancel>
             <Button
               type="button"
               variant="destructive"
               onClick={handleBulkDeleteSubmit}
-              disabled={isBulkDeleting || bulkDeleteCount === 0 || bulkDeleteConfirmation !== "PERMANENT DELETE"}
-              className="text-xs font-semibold gap-1.5"
+              disabled={
+                isBulkDeleting ||
+                bulkDeleteCount === 0 ||
+                bulkDeleteConfirmation !== "PERMANENT DELETE"
+              }
+              className="h-12 rounded-2xl text-sm font-semibold px-6"
             >
-              {isBulkDeleting ? (
-                <Loader2Icon className="size-3.5 animate-spin mr-1" />
-              ) : (
-                <Trash2Icon className="size-3.5" />
-              )}
-              <span>Permanently Delete ({bulkDeleteCount ?? 0}) Records</span>
+              {isBulkDeleting ? <Loader2 className="size-4 animate-spin" /> : "Delete All"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
