@@ -1488,6 +1488,7 @@ export function FinancesView({
 
         {!isCommShop && (
           <Button
+            data-tour="staff-new-record"
             onClick={() => handleOpenCreate("STANDARD")}
             disabled={unassignedStaff || !userShopId}
             className="h-12 px-6 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-sm gap-2 transition-all shadow-md shrink-0 cursor-pointer"
@@ -1500,7 +1501,7 @@ export function FinancesView({
 
       {/* Dedicated Quick Action Toolbar for Communication Shops */}
       {isCommShop && (
-        <div className="glass-panel rounded-3xl p-5 border border-muted/30 shadow-lg">
+        <div data-tour="staff-new-record" className="glass-panel rounded-3xl p-5 border border-muted/30 shadow-lg">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Counter Sales Group */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -1637,13 +1638,15 @@ export function FinancesView({
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={records}
-        searchKey="billNumber"
-        searchPlaceholder="Search bill number or reason..."
-        loading={loading}
-      />
+      <div data-tour="staff-finance-table">
+        <DataTable
+          columns={columns}
+          data={records}
+          searchKey="billNumber"
+          searchPlaceholder="Search bill number or reason..."
+          loading={loading}
+        />
+      </div>
 
       {/* CREATE RECORD MODAL */}
       <Dialog open={createOpen} onOpenChange={handleCreateOpenChange}>

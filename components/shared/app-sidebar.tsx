@@ -311,14 +311,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <SidebarContent className="p-4 flex flex-col justify-between overflow-y-auto no-scrollbar">
           <SidebarGroup>
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1.5">
+              <SidebarMenu className="space-y-1.5" data-tour="shop-workspace-nav">
                 {shopNavItems.map((item) => {
                   const isActive = shopNav?.activeTab === item.key;
                   const Icon = item.icon;
+                  const tourAttr =
+                    item.key === "discrepancies"
+                      ? "shop-discrepancy"
+                      : item.key === "dailySettlement"
+                        ? "shop-settlement"
+                        : undefined;
                   return (
                     <SidebarMenuItem key={item.key}>
                       <button
                         type="button"
+                        data-tour={tourAttr}
                         onClick={() => {
                           if (shopNav) {
                             shopNav.setActiveTab(item.key);
@@ -430,7 +437,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
       {/* Navigation List */}
       <SidebarContent className="p-4 flex flex-col justify-between overflow-y-auto no-scrollbar">
-        <SidebarGroup>
+        <SidebarGroup data-tour="sidebar-nav">
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1.5">
               {navItems.map((item) => {

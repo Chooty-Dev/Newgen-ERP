@@ -7,6 +7,8 @@ import { AppHeader } from "@/components/shared/app-header";
 import { Toaster } from "@/components/ui/toast";
 import { ShopNavProvider } from "@/components/shared/shop-nav-context";
 
+import { WhatsNewTour } from "@/components/shared/whats-new-tour";
+
 interface DashboardLayoutClientProps {
   user: {
     id: string;
@@ -36,6 +38,7 @@ export function DashboardLayoutClient({
             </main>
           </div>
         </div>
+        <WhatsNewTour user={user} />
         <Toaster />
       </SidebarProvider>
     </ShopNavProvider>

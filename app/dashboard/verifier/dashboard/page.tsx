@@ -70,7 +70,7 @@ export default async function VerifierDashboardPage() {
       </div>
 
       {/* KPI Stat Cards */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="verifier-queue" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Pending Approvals */}
         <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between">

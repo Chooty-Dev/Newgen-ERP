@@ -191,7 +191,7 @@ export function StaffDashboardView({
       </div>
 
       {/* Modern KPI Cards */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="staff-overview" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Ledger Balance */}
         <div className="glass-card p-6 sm:p-8 rounded-3xl border border-muted/30 flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between">

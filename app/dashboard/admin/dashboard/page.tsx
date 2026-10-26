@@ -65,7 +65,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* KPI Matrix (Large Glassmorphic Cards, Raw Icons, Distinct Accents) */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="admin-metrics" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Net Cash Balance */}
         <div className="glass-panel rounded-3xl p-8 space-y-4 border-muted/20 transition-all hover:bg-surface/50">
           <div className="flex items-center justify-between">

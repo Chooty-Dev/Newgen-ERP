@@ -157,23 +157,28 @@ export function AppHeader({ user }: AppHeaderProps) {
 
       <div className="flex items-center gap-3">
         {/* Animated Sun / Moon Theme Switcher */}
-        <SunMoonThemeToggle
-          size={40}
-          duration={1200}
-          sky={true}
-          storageKey="theme"
-          syncDocument={true}
-          onThemeChange={(theme) => {
-            document.documentElement.style.colorScheme = theme;
-          }}
-          className="border-muted/30 hover:border-muted/60 transition-all shadow-xs"
-        />
+        <div data-tour="header-theme" className="inline-flex">
+          <SunMoonThemeToggle
+            size={40}
+            duration={1200}
+            sky={true}
+            storageKey="theme"
+            syncDocument={true}
+            onThemeChange={(theme) => {
+              document.documentElement.style.colorScheme = theme;
+            }}
+            className="border-muted/30 hover:border-muted/60 transition-all shadow-xs"
+          />
+        </div>
 
         {/* Minimalist Profile Trigger */}
         <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
           <DialogTrigger
             render={
-              <button className="flex items-center gap-3 rounded-2xl px-3 py-2 text-foreground hover:bg-surface/50 transition-colors" />
+              <button
+                data-tour="header-profile"
+                className="flex items-center gap-3 rounded-2xl px-3 py-2 text-foreground hover:bg-surface/50 transition-colors"
+              />
             }
           >
             <span className="hidden md:inline-block text-base font-semibold text-foreground">

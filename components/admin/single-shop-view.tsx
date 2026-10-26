@@ -1026,16 +1026,18 @@ export function SingleShopView({
   return (
     <div className="space-y-8 max-w-full pb-16">
       {/* 1. Header Banner */}
-      <ShopHeaderBanner
-        shop={shop}
-        stats={stats}
-        commAnalytics={commAnalytics}
-        staffCount={staff.length}
-        isCommunication={isCommunication}
-        isInventoryShop={isInventoryShop}
-        onRefresh={fetchShopData}
-        refreshLoading={loading}
-      />
+      <div data-tour="shop-overview">
+        <ShopHeaderBanner
+          shop={shop}
+          stats={stats}
+          commAnalytics={commAnalytics}
+          staffCount={staff.length}
+          isCommunication={isCommunication}
+          isInventoryShop={isInventoryShop}
+          onRefresh={fetchShopData}
+          refreshLoading={loading}
+        />
+      </div>
 
       {/* 2. Main Tab View (Driven directly by the Dedicated Branch Sidebar) */}
       <Tabs value={activeTab} onValueChange={(val: any) => handleTabChange(val)} className="space-y-6">
