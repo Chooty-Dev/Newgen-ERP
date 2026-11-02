@@ -1176,29 +1176,25 @@ export function SingleShopView({
           </TabsContent>
         )}
 
-        {/* DAILY CASH FLOAT & SURPLUS SETTLEMENT TAB */}
-        {isCommunication && (
-          <TabsContent value="dailySettlement" className="space-y-6 mt-0">
-            <ShopSettlementTab
-              shopId={shop._id}
-              shopName={shop.name}
-              currentBalance={stats.currentBalance}
-              onRefreshShop={fetchShopData}
-            />
-          </TabsContent>
-        )}
+        {/* DAILY CASH FLOAT & SURPLUS SETTLEMENT TAB (Available for all branch types) */}
+        <TabsContent value="dailySettlement" className="space-y-6 mt-0">
+          <ShopSettlementTab
+            shopId={shop._id}
+            shopName={shop.name}
+            currentBalance={stats.currentBalance}
+            onRefreshShop={fetchShopData}
+          />
+        </TabsContent>
 
-        {/* DISCREPANCY DIAGNOSTICS & CASH RECONCILIATION TAB */}
-        {isCommunication && (
-          <TabsContent value="discrepancies" className="space-y-6 mt-0">
-            <ShopDiscrepancyTab
-              shopId={shop._id}
-              shopName={shop.name}
-              shopCode={shop.code}
-              onUpdated={fetchShopData}
-            />
-          </TabsContent>
-        )}
+        {/* DISCREPANCY DIAGNOSTICS & CASH RECONCILIATION TAB (Available for all branch types) */}
+        <TabsContent value="discrepancies" className="space-y-6 mt-0">
+          <ShopDiscrepancyTab
+            shopId={shop._id}
+            shopName={shop.name}
+            shopCode={shop.code}
+            onUpdated={fetchShopData}
+          />
+        </TabsContent>
 
         {/* ASSIGNED OFFICERS & STAFF TAB */}
         <TabsContent value="staff" className="space-y-6 mt-0">

@@ -15,6 +15,7 @@ import {
 import { isAdmin } from "@/lib/rbac";
 import { logAuditEvent } from "@/lib/audit";
 import { recalculateShopRunningBalance, getRecordExactTimestamp, resolveShopEffectiveType } from "@/lib/balance";
+import { handleDeletedCreditFinanceRecord, recalculateCustomerCreditBalance } from "@/actions/credit";
 import mongoose from "mongoose";
 
 interface AdminTransactionsFilterParams {
@@ -450,6 +451,11 @@ export async function adminEditTransactionAction(formData: unknown) {
       }
     }
 
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (record.customerCredit) {
+      await recalculateCustomerCreditBalance(record.customerCredit);
+    }
+
     // Write audit log
     await logAuditEvent({
       actorId: session.user.id,
@@ -543,6 +549,11 @@ export async function adminDeleteTransactionAction(formData: unknown) {
         else bank.currentBalance += effectiveAmount;
         await bank.save();
       }
+    }
+
+    // Rebalance customer credit account if record was tied to a credit customer or debt repayment
+    if (record.customerCredit || record.paymentMethod === "CREDIT" || record.isDebtRepayment) {
+      await handleDeletedCreditFinanceRecord(record);
     }
 
     // Write audit log

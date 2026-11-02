@@ -362,6 +362,7 @@ export async function getShopCreditCustomersAction(shopId: string, search?: stri
 
 /**
  * Returns statement details and transaction history for a single credit customer.
+ * Includes complete itemized breakdown of items purchased, utility bill details, and debt repayments.
  */
 export async function getCustomerCreditStatementAction(customerId: string) {
   const session = await auth();
@@ -382,8 +383,215 @@ export async function getCustomerCreditStatementAction(customerId: string) {
     }
 
     const transactions = await CreditTransaction.find({ customerCredit: custObjId })
-      .sort({ date: -1, createdAt: -1 })
+      .sort({ date: 1, createdAt: 1 })
       .populate("recordedBy", "name")
+      .populate("shop", "name code")
+      .populate("bankAccount", "bankName accountNumber accountName")
+      .lean();
+
+    // Collect all bill numbers and financeRecord IDs
+    const billNumbers = transactions.map((t: any) => t.billNumber).filter(Boolean);
+    const frIds = transactions.map((t: any) => t.financeRecord).filter(Boolean);
+
+    // Fetch all related finance records
+    const financeRecords = await FinanceRecord.find({
+      $or: [
+        { customerCredit: custObjId },
+        { _id: { $in: frIds } },
+        { billNumber: { $in: billNumbers } },
+      ],
+      isDeleted: { $ne: true },
+    })
+      .populate("category", "name")
+      .populate("bankAccount", "bankName accountNumber")
+      .populate("shop", "name code")
+      .lean();
+
+    // Compute running debt balance chronologically
+    let runningDebt = 0;
+    const runningDebtMap = new Map<string, number>();
+
+    for (const tx of transactions) {
+      const isRepay = tx.type === "REPAYMENT" || (tx as any).type === "DEBT_REPAYMENT";
+      if (isRepay) {
+        runningDebt = Math.max(0, runningDebt - tx.amount);
+      } else {
+        runningDebt += tx.amount;
+      }
+      runningDebtMap.set(tx._id.toString(), runningDebt);
+    }
+
+    // Now map transactions with itemized breakdowns
+    const mappedTransactions = transactions.map((t: any) => {
+      const isRepay = t.type === "REPAYMENT" || (t as any).type === "DEBT_REPAYMENT";
+
+      // Match finance records for credit purchases (repayments do not have product items)
+      let matchingFRs: any[] = [];
+      if (!isRepay) {
+        if (t.financeRecord) {
+          const direct = financeRecords.find((fr: any) => fr._id.toString() === t.financeRecord.toString());
+          if (direct) matchingFRs.push(direct);
+        }
+        if (matchingFRs.length === 0 && t.billNumber) {
+          // Priority 1: Match records with this specific customer's credit ID and billNumber
+          const custMatches = financeRecords.filter((fr: any) =>
+            fr.billNumber === t.billNumber &&
+            fr.customerCredit &&
+            fr.customerCredit.toString() === custObjId.toString()
+          );
+          if (custMatches.length > 0) {
+            matchingFRs = custMatches;
+          } else {
+            // Priority 2: Credit records on this bill that don't belong to another customer
+            const creditMatches = financeRecords.filter((fr: any) =>
+              fr.billNumber === t.billNumber &&
+              fr.paymentMethod === "CREDIT" &&
+              (!fr.customerCredit || fr.customerCredit.toString() === custObjId.toString())
+            );
+            if (creditMatches.length > 0) {
+              matchingFRs = creditMatches;
+            } else {
+              // Priority 3: Direct amount match on this bill without another customer's ID
+              matchingFRs = financeRecords.filter((fr: any) =>
+                fr.billNumber === t.billNumber &&
+                (!fr.customerCredit || fr.customerCredit.toString() === custObjId.toString()) &&
+                Math.abs((fr.amount || 0) - (t.amount || 0)) < 0.01
+              );
+            }
+          }
+        }
+      }
+
+      const isUtilityBill = matchingFRs.some((fr: any) => fr.isUtilityBill);
+      const isTelecomReload = matchingFRs.some((fr: any) => fr.isTelecomReload);
+
+      let categoryType: "REPAYMENT" | "UTILITY_BILL" | "TELECOM_RELOAD" | "ITEMS_PURCHASE" | "GENERAL" = "GENERAL";
+      let categoryLabel = "Credit Transaction";
+
+      if (isRepay) {
+        categoryType = "REPAYMENT";
+        categoryLabel = "Debt Repayment";
+      } else if (isUtilityBill) {
+        categoryType = "UTILITY_BILL";
+        const utilTypes = [...new Set(matchingFRs.filter((fr: any) => fr.isUtilityBill).map((fr: any) => fr.utilityBillType).filter(Boolean))];
+        const utilTypeLabel = utilTypes.length > 0
+          ? utilTypes.map((u) => (u === "ELECTRICITY" ? "Electricity" : u === "WATER" ? "Water" : u)).join(", ")
+          : "Utility";
+        categoryLabel = `${utilTypeLabel} Bill Payment`;
+      } else if (isTelecomReload) {
+        categoryType = "TELECOM_RELOAD";
+        const op = matchingFRs.find((fr: any) => fr.isTelecomReload)?.telecomOperator;
+        categoryLabel = op ? `${op} Reload` : "Telecom Reload";
+      } else {
+        categoryType = "ITEMS_PURCHASE";
+        categoryLabel = matchingFRs.length > 1 ? `Items Purchase (${matchingFRs.length} items)` : (matchingFRs[0]?.itemName || "Credit Purchase");
+      }
+
+      // Map item lines (only for purchases; repayments have items = [])
+      let items: any[] = [];
+      if (!isRepay) {
+        items = matchingFRs.map((fr: any) => {
+          let displayName = fr.itemName || fr.reason || "Item";
+          if (fr.isUtilityBill) {
+            const typeStr = fr.utilityBillType === "ELECTRICITY" ? "Electricity Bill" : fr.utilityBillType === "WATER" ? "Water Bill" : "Utility Bill";
+            displayName = `${typeStr}${fr.utilityAccountNumber ? ` (Acc #${fr.utilityAccountNumber})` : ""}`;
+          } else if (fr.isTelecomReload) {
+            displayName = `${fr.telecomOperator ? `${fr.telecomOperator} ` : ""}${fr.itemName || "Reload"}${fr.telecomType === "PACKAGE" ? " [Package]" : ""}`;
+          }
+
+          return {
+            _id: fr._id.toString(),
+            itemName: displayName,
+            rawItemName: fr.itemName || fr.reason || "",
+            itemCode: fr.itemCode || null,
+            quantity: fr.quantity || 1,
+            unitPrice: typeof fr.sellingPrice === "number" ? fr.sellingPrice : (fr.amount / (fr.quantity || 1)),
+            amount: fr.amount,
+            discountPrice: fr.discountPrice || 0,
+            additionalCost: fr.additionalCost || 0,
+            isUtilityBill: Boolean(fr.isUtilityBill),
+            utilityBillType: fr.utilityBillType || null,
+            utilityAccountNumber: fr.utilityAccountNumber || null,
+            billAmount: fr.billAmount || null,
+            serviceCharge: fr.serviceCharge || null,
+            isTelecomReload: Boolean(fr.isTelecomReload),
+            telecomOperator: fr.telecomOperator || null,
+            telecomType: fr.telecomType || null,
+            categoryName: fr.category?.name || null,
+            reason: fr.reason || null,
+          };
+        });
+
+        // Fallback if no finance record items found for credit purchase
+        if (items.length === 0) {
+          const cleanNote = (t.note || "").replace(/^Credit Sale:\s*/i, "").trim();
+          const fallbackDesc = cleanNote || "Credit Sale";
+          items.push({
+            _id: t._id.toString(),
+            itemName: fallbackDesc,
+            rawItemName: fallbackDesc,
+            itemCode: null,
+            quantity: 1,
+            unitPrice: t.amount,
+            amount: t.amount,
+            discountPrice: 0,
+            additionalCost: 0,
+            isUtilityBill: false,
+            utilityBillType: null,
+            utilityAccountNumber: null,
+            billAmount: null,
+            serviceCharge: null,
+            isTelecomReload: false,
+            telecomOperator: null,
+            telecomType: null,
+            categoryName: "Credit Sale",
+            reason: t.note || null,
+          });
+        }
+      }
+
+      // Generate a human-readable detailsSummary
+      let detailsSummary = "";
+      if (isRepay) {
+        const methodStr = (t.paymentMethod || "CASH").replace(/_/g, " ");
+        const bankStr = t.bankAccount ? ` (${t.bankAccount.bankName}${t.bankAccount.accountNumber ? ` #${t.bankAccount.accountNumber}` : ""})` : "";
+        const noteStr = t.note && !t.note.toLowerCase().includes("debt repayment") ? ` - ${t.note}` : "";
+        detailsSummary = `Debt Repayment via ${methodStr}${bankStr}${noteStr}`;
+      } else {
+        if (items.length === 1) {
+          detailsSummary = `${items[0].itemName}${items[0].quantity > 1 ? ` (×${items[0].quantity})` : ""}`;
+        } else {
+          detailsSummary = items.map((i: any) => `${i.itemName} (×${i.quantity})`).join(", ");
+        }
+      }
+
+      const bankAccountDisplay = t.bankAccount
+        ? `${t.bankAccount.bankName}${t.bankAccount.accountNumber ? ` (${t.bankAccount.accountNumber})` : ""}`
+        : null;
+
+      return {
+        _id: t._id.toString(),
+        type: isRepay ? "REPAYMENT" : "CREDIT_SALE",
+        categoryType,
+        categoryLabel,
+        amount: t.amount,
+        paymentMethod: t.paymentMethod || "CREDIT",
+        billNumber: t.billNumber || "",
+        note: t.note || "",
+        date: t.date ? new Date(t.date).toISOString() : null,
+        recordedBy: t.recordedBy?.name || "Staff",
+        shopName: t.shop?.name || "",
+        bankAccount: bankAccountDisplay,
+        items,
+        itemCount: items.length,
+        detailsSummary,
+        runningDebtBalance: runningDebtMap.get(t._id.toString()) ?? 0,
+      };
+    });
+
+    // Return transactions sorted newest first for the statement view
+    const sortedNewestFirst = [...mappedTransactions].reverse();
+
     const shopData = customer.shop
       ? {
           _id: (customer.shop as any)._id?.toString() || "",
@@ -405,17 +613,7 @@ export async function getCustomerCreditStatementAction(customerId: string) {
         notes: customer.notes || "",
         shop: shopData,
       },
-      transactions: transactions.map((t: any) => ({
-        _id: t._id.toString(),
-        type: t.type,
-        amount: t.amount,
-        paymentMethod: t.paymentMethod,
-        billNumber: t.billNumber || "",
-        note: t.note || "",
-        date: t.date ? new Date(t.date).toISOString() : null,
-        recordedBy: t.recordedBy?.name || "System",
-        bankAccount: t.bankAccount ? `${t.bankAccount.bankName} (${t.bankAccount.accountNumber})` : null,
-      })),
+      transactions: sortedNewestFirst,
     };
 
     return JSON.parse(JSON.stringify(result));
@@ -423,4 +621,115 @@ export async function getCustomerCreditStatementAction(customerId: string) {
     console.error("Get customer credit statement error:", error);
     return { success: false, error: "Failed to load customer statement." };
   }
+}
+
+/**
+ * Recalculate customer's total credit, total paid, and current debt balance
+ * based strictly on active (non-deleted) financial records.
+ */
+export async function recalculateCustomerCreditBalance(customerCreditId: string | mongoose.Types.ObjectId) {
+  await connectDB();
+  const custObjId = typeof customerCreditId === "string" ? new mongoose.Types.ObjectId(customerCreditId) : customerCreditId;
+  const customer = await CustomerCredit.findById(custObjId);
+  if (!customer) return null;
+
+  // Active credit sales (non-deleted, CREDIT payment method, not a debt repayment)
+  const activeSales = await FinanceRecord.aggregate([
+    {
+      $match: {
+        customerCredit: custObjId,
+        isDeleted: { $ne: true },
+        isDebtRepayment: { $ne: true },
+        paymentMethod: "CREDIT",
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$amount" },
+      },
+    },
+  ]);
+
+  // Active repayments (non-deleted, isDebtRepayment: true)
+  const activeRepayments = await FinanceRecord.aggregate([
+    {
+      $match: {
+        customerCredit: custObjId,
+        isDeleted: { $ne: true },
+        isDebtRepayment: true,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$amount" },
+      },
+    },
+  ]);
+
+  const totalCredit = activeSales[0]?.total || 0;
+  const totalPaid = activeRepayments[0]?.total || 0;
+  const currentBalance = Math.max(0, totalCredit - totalPaid);
+
+  customer.totalCredit = totalCredit;
+  customer.totalPaid = totalPaid;
+  customer.currentBalance = currentBalance;
+  customer.lastActivityDate = new Date();
+  await customer.save();
+
+  return { totalCredit, totalPaid, currentBalance };
+}
+
+/**
+ * Handle reversal of credit when a FinanceRecord is deleted.
+ * Reconciles the associated CreditTransaction and re-computes customer debt balance.
+ */
+export async function handleDeletedCreditFinanceRecord(record: any) {
+  if (!record || !record.customerCredit) return;
+  await connectDB();
+
+  const custObjId = typeof record.customerCredit === "string" ? new mongoose.Types.ObjectId(record.customerCredit) : record.customerCredit;
+
+  // 1. If it was a debt repayment
+  if (record.isDebtRepayment) {
+    await CreditTransaction.deleteMany({
+      $or: [
+        { financeRecord: record._id },
+        { customerCredit: custObjId, billNumber: record.billNumber, type: "REPAYMENT" },
+      ],
+    });
+  } else if (record.paymentMethod === "CREDIT") {
+    // 2. If it was a credit sale
+    const remainingFRs = await FinanceRecord.find({
+      customerCredit: custObjId,
+      billNumber: record.billNumber,
+      isDeleted: { $ne: true },
+      paymentMethod: "CREDIT",
+    }).lean();
+
+    const remainingTotal = remainingFRs.reduce((sum: number, fr: any) => sum + (fr.amount || 0), 0);
+
+    const creditTx = await CreditTransaction.findOne({
+      customerCredit: custObjId,
+      billNumber: record.billNumber,
+      type: "CREDIT_SALE",
+    });
+
+    if (creditTx) {
+      if (remainingTotal <= 0) {
+        // No active items remain on this bill -> delete the transaction
+        await CreditTransaction.deleteOne({ _id: creditTx._id });
+      } else {
+        // Adjust transaction amount & note to reflect remaining active items
+        creditTx.amount = remainingTotal;
+        const itemNames = remainingFRs.map((fr: any) => fr.itemName || fr.reason || "Item").join(", ");
+        creditTx.note = `Credit Sale: ${itemNames}`;
+        await creditTx.save();
+      }
+    }
+  }
+
+  // 3. Rebalance CustomerCredit record
+  await recalculateCustomerCreditBalance(custObjId);
 }

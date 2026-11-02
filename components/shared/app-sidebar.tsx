@@ -192,6 +192,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
           icon: History,
         },
         {
+          key: "dailySettlement" as ShopTabId,
+          title: "Daily Settlement",
+          icon: Coins,
+        },
+        {
+          key: "discrepancies" as ShopTabId,
+          title: "Discrepancy Manager",
+          icon: Scale,
+        },
+        {
           key: "staff" as ShopTabId,
           title: "Assigned Staff",
           icon: UserCheck,
@@ -261,6 +271,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
         key: "overview" as ShopTabId,
         title: "Overview & Analytics",
         icon: LayoutDashboard,
+      },
+      {
+        key: "dailySettlement" as ShopTabId,
+        title: "Daily Settlement",
+        icon: Coins,
+      },
+      {
+        key: "discrepancies" as ShopTabId,
+        title: "Discrepancy Manager",
+        icon: Scale,
       },
       {
         key: "staff" as ShopTabId,

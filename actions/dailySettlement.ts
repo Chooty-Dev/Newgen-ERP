@@ -84,6 +84,44 @@ export async function getDailySettlementHistoryAction(shopId: string) {
     const defaultRetainedFloat = 4000;
     const suggestedTransferAmount = Math.max(0, currentCashBalance - defaultRetainedFloat);
 
+    // 5. Unsettled cross-branch cash collections held by this shop
+    const unsettledCrossRecords = await FinanceRecord.find({
+      $or: [
+        { collectingShop: shopId },
+        { shop: shopId, isCrossBranchPayment: true, beneficiaryShop: { $ne: shopId } },
+      ],
+      isCrossBranchPayment: true,
+      interBranchSettlementStatus: "UNSETTLED",
+      isDeleted: { $ne: true },
+      status: { $ne: "REJECTED" },
+    })
+      .populate("beneficiaryShop", "name code")
+      .lean();
+
+    let unsettledCrossAmount = 0;
+    const unsettledCrossBreakdownMap: Record<
+      string,
+      { shopId: string; shopName: string; shopCode: string; count: number; totalAmount: number }
+    > = {};
+
+    for (const r of unsettledCrossRecords) {
+      const amt = r.approvedAmount ?? r.amount ?? 0;
+      unsettledCrossAmount += amt;
+      const bShop: any = r.beneficiaryShop;
+      const bId = bShop?._id?.toString() || "unknown";
+      if (!unsettledCrossBreakdownMap[bId]) {
+        unsettledCrossBreakdownMap[bId] = {
+          shopId: bId,
+          shopName: bShop?.name || "Other Branch",
+          shopCode: bShop?.code || "SHOP",
+          count: 0,
+          totalAmount: 0,
+        };
+      }
+      unsettledCrossBreakdownMap[bId].count += 1;
+      unsettledCrossBreakdownMap[bId].totalAmount += amt;
+    }
+
     return {
       success: true,
       shop: JSON.parse(JSON.stringify(shop)),
@@ -99,6 +137,11 @@ export async function getDailySettlementHistoryAction(shopId: string) {
         totalToHandover,
         settlementCount: settlements.length,
         lastSettlementDate: settlements[0]?.date || null,
+      },
+      unsettledCrossBranch: {
+        count: unsettledCrossRecords.length,
+        totalAmount: unsettledCrossAmount,
+        breakdown: Object.values(unsettledCrossBreakdownMap),
       },
     };
   } catch (error) {
@@ -320,7 +363,62 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
       createdBy: session.user.id,
     });
 
-    // 3. Create DailySettlement record
+    // 3. Auto-settle any unsettled cross-branch collections collected by this shop up to this date
+    const startOfDay = new Date(settlementDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(settlementDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const unsettledCrossBranchToSettle = await FinanceRecord.find({
+      $or: [
+        { collectingShop: shop._id },
+        { shop: shop._id, isCrossBranchPayment: true, beneficiaryShop: { $ne: shop._id } },
+      ],
+      isCrossBranchPayment: true,
+      interBranchSettlementStatus: "UNSETTLED",
+      isDeleted: { $ne: true },
+      status: { $ne: "REJECTED" },
+      date: { $lte: endOfDay },
+    });
+
+    let settledInterBranchAmount = 0;
+    const settledInterBranchIds: mongoose.Types.ObjectId[] = [];
+    const affectedBeneficiaryShops = new Set<string>();
+
+    if (unsettledCrossBranchToSettle.length > 0) {
+      const interBranchSettlementType =
+        destinationType === "BANK_ACCOUNT"
+          ? "DEPOSITED_TO_BANK"
+          : destinationType === "PETTY_CASH"
+          ? "PETTY_CASH_TRANSFER"
+          : "HANDOVER_TO_BRANCH";
+
+      for (const rec of unsettledCrossBranchToSettle) {
+        const amt = rec.approvedAmount ?? rec.amount ?? 0;
+        settledInterBranchAmount += amt;
+        settledInterBranchIds.push(rec._id);
+        if (rec.beneficiaryShop) {
+          affectedBeneficiaryShops.add(rec.beneficiaryShop.toString());
+        }
+      }
+
+      await FinanceRecord.updateMany(
+        { _id: { $in: settledInterBranchIds } },
+        {
+          $set: {
+            interBranchSettlementStatus: "SETTLED",
+            settledAt: settlementDate,
+            settledBy: new mongoose.Types.ObjectId(session.user.id),
+            settlementType: interBranchSettlementType,
+            settlementReference: generatedRef,
+            settlementNote: `Auto-settled via Daily Settlement (${generatedRef}) - Swept to ${destName}`,
+            ...(destinationType === "BANK_ACCOUNT" && bankDoc ? { bankAccount: bankDoc._id } : {}),
+          },
+        }
+      );
+    }
+
+    // 4. Create DailySettlement record
     const dailySettlement = await DailySettlement.create({
       shop: shop._id,
       date: settlementDate,
@@ -332,15 +430,21 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
       financeRecord: shopExpenseRecord._id,
       destinationFinanceRecord: destFinanceRecordId,
       openingFloatFinanceRecord: floatRec ? floatRec._id : null,
+      settledInterBranchRecords: settledInterBranchIds,
+      settledInterBranchAmount: settledInterBranchAmount,
       reference: generatedRef,
       note: note || "",
       settledBy: session.user.id,
     });
 
-    // 4. Recalculate shop running balance
-    await recalculateShopRunningBalance(shop._id);
+    // 5. Recalculate shop running balances
+    await recalculateShopRunningBalance(shop._id, settlementDate);
 
-    // 5. Audit Log
+    for (const bShopId of affectedBeneficiaryShops) {
+      await recalculateShopRunningBalance(bShopId, settlementDate);
+    }
+
+    // 6. Audit Log
     await logAuditEvent({
       action: "DAILY_CASH_SETTLEMENT",
       actorId: session.user.id,
@@ -355,14 +459,20 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
         destinationType,
         destinationName: destName,
         reference: generatedRef,
+        settledInterBranchCount: settledInterBranchIds.length,
+        settledInterBranchAmount,
       },
     });
+
+    const interBranchNotice = settledInterBranchIds.length > 0
+      ? ` Also auto-settled ${settledInterBranchIds.length} inter-branch collection(s) (LKR ${settledInterBranchAmount.toLocaleString()}) for other branches.`
+      : "";
 
     return {
       success: true,
       message: destinationType === "PHYSICAL_HANDOVER"
-        ? `Successfully recorded physical handover of LKR ${transferAmount.toLocaleString()}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.`
-        : `Successfully settled LKR ${transferAmount.toLocaleString()} to ${destName}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.`,
+        ? `Successfully recorded physical handover of LKR ${transferAmount.toLocaleString()}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.${interBranchNotice}`
+        : `Successfully settled LKR ${transferAmount.toLocaleString()} to ${destName}. Retained float in drawer is LKR ${retainedFloat.toLocaleString()}.${interBranchNotice}`,
     };
   } catch (error) {
     console.error("Error recording daily settlement:", error);

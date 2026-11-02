@@ -22,6 +22,7 @@ import {
 } from "@/schemas/finance";
 import { canCreateFinanceRecord, canReviewFinanceRecord, isAdmin } from "@/lib/rbac";
 import { recalculateShopRunningBalance, getShopInterBranchDues, resolveShopEffectiveType } from "@/lib/balance";
+import { handleDeletedCreditFinanceRecord, recalculateCustomerCreditBalance } from "@/actions/credit";
 import { logAuditEvent } from "@/lib/audit";
 import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
@@ -168,16 +169,16 @@ export async function getFinanceRecordsAction(params: GetFinanceRecordsParams = 
 
     const finalRecords = targetShopForType
       ? records.map((r: any) => {
-          const bShopId = r.beneficiaryShop?._id?.toString() || r.beneficiaryShop?.toString();
-          const isBeneficiaryView = bShopId === targetShopForType;
-          return {
-            ...r,
-            type: resolveShopEffectiveType(r, targetShopForType!),
-            runningBalance: (isBeneficiaryView && r.beneficiaryRunningBalance != null)
-              ? r.beneficiaryRunningBalance
-              : r.runningBalance,
-          };
-        })
+        const bShopId = r.beneficiaryShop?._id?.toString() || r.beneficiaryShop?.toString();
+        const isBeneficiaryView = bShopId === targetShopForType;
+        return {
+          ...r,
+          type: resolveShopEffectiveType(r, targetShopForType!),
+          runningBalance: (isBeneficiaryView && r.beneficiaryRunningBalance != null)
+            ? r.beneficiaryRunningBalance
+            : r.runningBalance,
+        };
+      })
       : records;
 
     return {
@@ -393,6 +394,11 @@ export async function createFinanceRecordAction(formData: unknown) {
       await recalculateShopRunningBalance(beneficiaryShopId, recordDate);
     }
 
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (newRecord.customerCredit) {
+      await recalculateCustomerCreditBalance(newRecord.customerCredit);
+    }
+
     await logAuditEvent({
       actorId: session.user.id,
       action: "CREATE_RECORD",
@@ -569,6 +575,11 @@ export async function updateFinanceRecordAction(formData: unknown) {
       }
     }
 
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (record.customerCredit) {
+      await recalculateCustomerCreditBalance(record.customerCredit);
+    }
+
     await logAuditEvent({
       actorId: session.user.id,
       action: role === "ADMIN" && record.status !== "PENDING" ? "OVERRIDE_UPDATE_RECORD" : "UPDATE_RECORD",
@@ -648,6 +659,15 @@ export async function deleteFinanceRecordAction(recordId: string, overrideReason
           await bank.save();
         }
       }
+    }
+
+    if (record.customerCredit || record.paymentMethod === "CREDIT" || record.isDebtRepayment) {
+      await handleDeletedCreditFinanceRecord(record);
+    }
+
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (record.customerCredit) {
+      await recalculateCustomerCreditBalance(record.customerCredit);
     }
 
     await logAuditEvent({
@@ -762,6 +782,11 @@ export async function reviewFinanceRecordAction(formData: unknown) {
       if (record.beneficiaryShop) {
         await recalculateShopRunningBalance(record.beneficiaryShop, record.date);
       }
+    }
+
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (record.customerCredit) {
+      await recalculateCustomerCreditBalance(record.customerCredit);
     }
 
     await logAuditEvent({
@@ -937,7 +962,7 @@ export async function createCommunicationSaleBatchAction(payload: {
       const netAmount = Math.max(
         0,
         Number(item.amount) ||
-          Number(item.totalPrice) - Number(item.discountPrice || 0) + Number(item.additionalCost || 0)
+        Number(item.totalPrice) - Number(item.discountPrice || 0) + Number(item.additionalCost || 0)
       );
       grandTotal += netAmount;
       // Resolve unit selling price
@@ -1022,10 +1047,10 @@ export async function createCommunicationSaleBatchAction(payload: {
       const recordReason = isCredit
         ? `Credit Sale to ${customerCreditDoc.name} (${customerCreditDoc.phone}): ${item.itemName} (${item.quantity} ${item.quantity === 1 ? "unit" : "units"})`
         : isTelecomReload
-        ? telecomType === "PACKAGE" && packageBasePrice
-          ? `Telecom Package: ${item.itemName} (Base: LKR ${packageBasePrice}, Sold: LKR ${netAmount.toLocaleString()})`
-          : `Telecom Reload: ${item.itemName} (LKR ${netAmount.toLocaleString()})`
-        : `Retail Sale: ${item.itemName} (${item.quantity} ${item.quantity === 1 ? "unit" : "units"})`;
+          ? telecomType === "PACKAGE" && packageBasePrice
+            ? `Telecom Package: ${item.itemName} (Base: LKR ${packageBasePrice}, Sold: LKR ${netAmount.toLocaleString()})`
+            : `Telecom Reload: ${item.itemName} (LKR ${netAmount.toLocaleString()})`
+          : `Retail Sale: ${item.itemName} (${item.quantity} ${item.quantity === 1 ? "unit" : "units"})`;
 
       await FinanceRecord.create({
         date: now,
@@ -1102,6 +1127,11 @@ export async function createCommunicationSaleBatchAction(payload: {
     await recalculateShopRunningBalance(shop._id, now);
     if (isBranchRelated && relatedBranchId) {
       await recalculateShopRunningBalance(relatedBranchId, now);
+    }
+
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (customerCreditDoc) {
+      await recalculateCustomerCreditBalance(customerCreditDoc._id);
     }
 
     await logAuditEvent({
@@ -1243,6 +1273,12 @@ export async function settleInterBranchCashAction(formData: unknown) {
     await recalculateShopRunningBalance(holdingShop._id, now);
     if (targetShopId) {
       await recalculateShopRunningBalance(targetShopId, now);
+    }
+
+    // Rebalance customer credit account if any records were tied to a credit customer
+    const affectedCustCredits = [...new Set(records.map((r: any) => r.customerCredit?.toString()).filter(Boolean))] as string[];
+    for (const custId of affectedCustCredits) {
+      await recalculateCustomerCreditBalance(custId);
     }
 
     await logAuditEvent({
@@ -1416,8 +1452,8 @@ export async function recordUtilityBillPaymentAction(formData: unknown) {
       result.data.billType === "ELECTRICITY"
         ? "Light Bill (Electricity)"
         : result.data.billType === "WATER"
-        ? "Water Bill"
-        : "Utility Bill";
+          ? "Water Bill"
+          : "Utility Bill";
 
     const reason = `${typeLabel}: Acc #${result.data.accountNumber.trim()} (Bill: LKR ${billAmount.toLocaleString()} + Srv: LKR ${finalServiceCharge})`;
 
@@ -1458,8 +1494,8 @@ export async function recordUtilityBillPaymentAction(formData: unknown) {
         result.data.billType === "ELECTRICITY"
           ? "UTIL-ELEC"
           : result.data.billType === "WATER"
-          ? "UTIL-WATER"
-          : "UTIL-OTHER",
+            ? "UTIL-WATER"
+            : "UTIL-OTHER",
       itemName: typeLabel,
       customerName: result.data.customerName?.trim() || null,
       customerPhone: result.data.customerPhone?.trim() || null,
@@ -1480,6 +1516,11 @@ export async function recordUtilityBillPaymentAction(formData: unknown) {
 
     // Recalculate shop sequential running balance (adds totalCollected to physical cash drawer!)
     await recalculateShopRunningBalance(shop._id, recordDate);
+
+    // Rebalance customer credit account if record was tied to a credit customer
+    if (newRecord.customerCredit) {
+      await recalculateCustomerCreditBalance(newRecord.customerCredit);
+    }
 
     await logAuditEvent({
       actorId: session.user.id,

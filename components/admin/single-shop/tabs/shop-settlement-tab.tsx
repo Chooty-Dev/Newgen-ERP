@@ -69,6 +69,11 @@ export function ShopSettlementTab({
   const [dailySettlementLoading, setDailySettlementLoading] = React.useState(false);
   const [dailySettlementDialogOpen, setDailySettlementDialogOpen] = React.useState(false);
   const [isSubmittingDailySettlement, setIsSubmittingDailySettlement] = React.useState(false);
+  const [unsettledCrossBranch, setUnsettledCrossBranch] = React.useState<{
+    count: number;
+    totalAmount: number;
+    breakdown: Array<{ shopId: string; shopName: string; shopCode: string; count: number; totalAmount: number }>;
+  }>({ count: 0, totalAmount: 0, breakdown: [] });
 
   // Settlement Form State
   const [dailySettleDate, setDailySettleDate] = React.useState<string>(new Date().toISOString().split("T")[0]);
@@ -93,6 +98,9 @@ export function ShopSettlementTab({
       }
       if (res.summary) {
         setDailySettlementSummary(res.summary);
+      }
+      if (res.unsettledCrossBranch) {
+        setUnsettledCrossBranch(res.unsettledCrossBranch);
       }
       if (typeof res.currentCashBalance === "number") {
         setDailySettlementCurrentCash(res.currentCashBalance);
@@ -228,6 +236,27 @@ export function ShopSettlementTab({
             LKR {Number(row.original.transferAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
         ),
+      },
+      {
+        accessorKey: "settledInterBranchAmount",
+        header: () => <div className="text-right">Inter-Branch Settled</div>,
+        cell: ({ row }) => {
+          const amt = row.original.settledInterBranchAmount || 0;
+          const count = row.original.settledInterBranchRecords?.length || 0;
+          if (amt <= 0) {
+            return <div className="text-right font-mono text-xs text-muted-foreground">-</div>;
+          }
+          return (
+            <div className="text-right font-mono text-xs">
+              <span className="font-bold text-foreground">
+                LKR {Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-muted-foreground block font-sans">
+                {count} {count === 1 ? "collection" : "collections"}
+              </span>
+            </div>
+          );
+        },
       },
       {
         accessorKey: "destinationType",
@@ -405,6 +434,35 @@ export function ShopSettlementTab({
           </DialogHeader>
 
           <form onSubmit={handleSubmitDailySettlement} className="space-y-4 pt-2">
+            {unsettledCrossBranch.count > 0 && (
+              <div className="p-4 rounded-2xl border border-muted/30 bg-surface/40 space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <ArrowRightLeftIcon className="size-4 text-foreground shrink-0" />
+                    <span>Auto-Settlement of Other Branch Collections</span>
+                  </span>
+                  <span className="font-mono font-bold text-foreground">
+                    LKR {unsettledCrossBranch.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  This branch currently holds physical cash collected for other branches ({unsettledCrossBranch.count} records). Recording this settlement will automatically settle these inter-branch transactions with this sweep, preventing double settlement.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {unsettledCrossBranch.breakdown.map((b) => (
+                    <span
+                      key={b.shopId}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold bg-surface/60 border border-muted/20 text-foreground"
+                    >
+                      <span>{b.shopName}:</span>
+                      <span className="font-bold">LKR {b.totalAmount.toLocaleString()}</span>
+                      <span className="text-muted-foreground font-normal">({b.count})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase text-muted-foreground">Settlement Date *</label>
