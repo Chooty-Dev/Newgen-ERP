@@ -111,6 +111,18 @@ export function ShopsView({ initialShops }: { initialShops: ShopItem[] }) {
     setLoading(false);
   };
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onCreateSubmit = async (data: CreateShopInput) => {
     const res = await createShopAction(data);
     if (res.success) {
@@ -329,7 +341,7 @@ export function ShopsView({ initialShops }: { initialShops: ShopItem[] }) {
             </p>
           </DialogHeader>
 
-          <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-5">
+          <form onSubmit={createForm.handleSubmit(onCreateSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -440,7 +452,7 @@ export function ShopsView({ initialShops }: { initialShops: ShopItem[] }) {
             </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -450,6 +462,11 @@ export function ShopsView({ initialShops }: { initialShops: ShopItem[] }) {
                   {...editForm.register("name")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {editForm.formState.errors.name && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.name.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -460,6 +477,11 @@ export function ShopsView({ initialShops }: { initialShops: ShopItem[] }) {
                   {...editForm.register("code")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono uppercase font-bold"
                 />
+                {editForm.formState.errors.code && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.code.message}
+                  </p>
+                )}
               </div>
             </div>
 

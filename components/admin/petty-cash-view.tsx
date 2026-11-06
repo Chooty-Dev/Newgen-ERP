@@ -135,6 +135,18 @@ export function PettyCashView({
     }
   };
 
+  const onActionValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const exportCSV = () => {
     if (!records.length) {
       toast.create({
@@ -329,7 +341,7 @@ export function PettyCashView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onActionSubmit)} className="space-y-5">
+          <form onSubmit={form.handleSubmit(onActionSubmit, onActionValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -340,8 +352,13 @@ export function PettyCashView({
                   className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
                   <option value="TOP_UP">Replenish / Top-up Float (+)</option>
-                  <option value="WITHDRAW">Emergency Disbursement (-)</option>
+                  <option value="WITHDRAWAL">Emergency Disbursement (-)</option>
                 </select>
+                {form.formState.errors.type && (
+                  <p className="text-xs font-medium text-destructive">
+                    {form.formState.errors.type.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -354,6 +371,11 @@ export function PettyCashView({
                   {...form.register("amount", { valueAsNumber: true })}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
                 />
+                {form.formState.errors.amount && (
+                  <p className="text-xs font-medium text-destructive">
+                    {form.formState.errors.amount.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -367,6 +389,11 @@ export function PettyCashView({
                   {...form.register("date")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-medium"
                 />
+                {form.formState.errors.date && (
+                  <p className="text-xs font-medium text-destructive">
+                    {form.formState.errors.date.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -389,7 +416,7 @@ export function PettyCashView({
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Notes
+                Notes (Optional)
               </label>
               <Textarea
                 placeholder="Disbursement purpose or cashier voucher note"
@@ -397,6 +424,11 @@ export function PettyCashView({
                 className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
                 rows={3}
               />
+              {form.formState.errors.reason && (
+                <p className="text-xs font-medium text-destructive">
+                  {form.formState.errors.reason.message}
+                </p>
+              )}
             </div>
 
             <DialogFooter className="gap-3 pt-4">

@@ -1177,6 +1177,18 @@ export function FinancesView({
     setCreateOpen(true);
   };
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onCreateSubmit = async (data: CreateFinanceRecordInput) => {
     const res = await createFinanceRecordAction(data);
     if (res.success) {
@@ -2491,7 +2503,7 @@ export function FinancesView({
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 py-2">
+              <form onSubmit={createForm.handleSubmit(onCreateSubmit, onFormValidationError)} className="space-y-4 py-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Date</label>
@@ -2632,6 +2644,9 @@ export function FinancesView({
                               </option>
                             ))}
                         </select>
+                        {createForm.formState.errors.beneficiaryShop && (
+                          <p className="text-xs text-destructive">{createForm.formState.errors.beneficiaryShop.message}</p>
+                        )}
                       </div>
                       <p className="text-[11px] text-blue-600 dark:text-blue-400 bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 leading-relaxed">
                         💡 <strong>Drawer Accounting:</strong> Physical cash will be added to your drawer ({userShopName || "this shop"}), and sales revenue will be attributed to the selected branch after verification.
@@ -2676,7 +2691,7 @@ export function FinancesView({
             </div>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-2">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit, onFormValidationError)} className="space-y-4 py-2">
             {watchEditIsComm ? (
               <>
                 {/* COMMUNICATION ITEM FIELDS */}

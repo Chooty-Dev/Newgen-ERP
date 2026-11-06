@@ -12,7 +12,7 @@ export default async function DashboardLayout({
   const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/login");
+    redirect("/login?expired=1");
   }
 
   await connectDB();
@@ -20,6 +20,10 @@ export default async function DashboardLayout({
     .populate("shop", "name code shopType")
     .populate("shops", "name code shopType")
     .lean();
+
+  if (!dbUser || !dbUser.isActive) {
+    redirect("/login?deactivated=1");
+  }
 
   let activeShopId = dbUser?.shop
     ? (dbUser.shop as any)._id?.toString() || dbUser.shop.toString()

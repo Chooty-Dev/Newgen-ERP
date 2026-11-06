@@ -159,6 +159,18 @@ export function CategoriesView({
     setLoading(false);
   };
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onCreateSubmit = async (data: CreateCategoryInput) => {
     const res = await createCategoryAction(data);
     if (res.success) {
@@ -418,7 +430,7 @@ export function CategoriesView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-5">
+          <form onSubmit={createForm.handleSubmit(onCreateSubmit, onFormValidationError)} className="space-y-5">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 Category Name
@@ -497,7 +509,7 @@ export function CategoriesView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit, onFormValidationError)} className="space-y-5">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 Category Name
@@ -506,6 +518,11 @@ export function CategoriesView({
                 {...editForm.register("name")}
                 className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
               />
+              {editForm.formState.errors.name && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.name.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

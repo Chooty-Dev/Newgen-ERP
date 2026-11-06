@@ -251,6 +251,18 @@ export function AllTransactionsView({
     setEditOpen(true);
   };
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onEditSubmit = async (data: AdminEditFinanceRecordInput) => {
     try {
       const res = await adminEditTransactionAction(data);
@@ -863,7 +875,7 @@ export function AllTransactionsView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -874,6 +886,11 @@ export function AllTransactionsView({
                   {...editForm.register("date")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {editForm.formState.errors.date && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.date.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -884,6 +901,11 @@ export function AllTransactionsView({
                   {...editForm.register("billNumber")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
                 />
+                {editForm.formState.errors.billNumber && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.billNumber.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -977,6 +999,11 @@ export function AllTransactionsView({
                   {...editForm.register("amount", { valueAsNumber: true })}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
                 />
+                {editForm.formState.errors.amount && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.amount.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

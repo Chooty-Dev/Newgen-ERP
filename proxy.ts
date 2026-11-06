@@ -37,9 +37,20 @@ export default auth((req) => {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // 3. Root /dashboard redirect to specific role dashboard
-  if (isLoggedIn && (nextUrl.pathname === "/dashboard" || nextUrl.pathname === "/dashboard/")) {
-    return NextResponse.redirect(new URL(getRoleHome(role), nextUrl));
+  // 3. Root /dashboard and role base path redirects to specific role dashboard
+  if (isLoggedIn) {
+    if (nextUrl.pathname === "/dashboard" || nextUrl.pathname === "/dashboard/") {
+      return NextResponse.redirect(new URL(getRoleHome(role), nextUrl));
+    }
+    if (nextUrl.pathname === "/dashboard/admin" || nextUrl.pathname === "/dashboard/admin/") {
+      return NextResponse.redirect(new URL("/dashboard/admin/dashboard", nextUrl));
+    }
+    if (nextUrl.pathname === "/dashboard/verifier" || nextUrl.pathname === "/dashboard/verifier/") {
+      return NextResponse.redirect(new URL("/dashboard/verifier/dashboard", nextUrl));
+    }
+    if (nextUrl.pathname === "/dashboard/staff" || nextUrl.pathname === "/dashboard/staff/") {
+      return NextResponse.redirect(new URL("/dashboard/staff/dashboard", nextUrl));
+    }
   }
 
   // 4. Role-based path guarding

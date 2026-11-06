@@ -53,6 +53,18 @@ export function SettingsView({ user }: SettingsViewProps) {
     },
   });
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onProfileSubmit = async (data: UpdateProfileInput) => {
     const res = await updateProfileAction(data);
     if (res.success) {
@@ -128,7 +140,7 @@ export function SettingsView({ user }: SettingsViewProps) {
 
       {activeTab === "profile" && (
         <div className="glass-panel rounded-3xl p-8 sm:p-12 space-y-8 border-muted/20 shadow-lg">
-          <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
+          <form onSubmit={profileForm.handleSubmit(onProfileSubmit, onFormValidationError)} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-base font-semibold text-foreground">
@@ -200,7 +212,7 @@ export function SettingsView({ user }: SettingsViewProps) {
 
       {activeTab === "security" && (
         <div className="glass-panel rounded-3xl p-8 sm:p-12 space-y-8 border-muted/20 shadow-lg">
-          <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
+          <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit, onFormValidationError)} className="space-y-6">
             <div className="space-y-2">
               <label className="text-base font-semibold text-foreground">
                 Current Password
@@ -228,6 +240,9 @@ export function SettingsView({ user }: SettingsViewProps) {
                 {...passwordForm.register("newPassword")}
                 className="h-14 rounded-2xl bg-surface/40 border-muted/30 text-base"
               />
+              <p className="text-xs text-muted-foreground">
+                Min. 8 characters with at least 1 uppercase letter, 1 number, and 1 symbol.
+              </p>
               {passwordForm.formState.errors.newPassword && (
                 <p className="text-sm font-medium text-destructive">
                   {passwordForm.formState.errors.newPassword.message}

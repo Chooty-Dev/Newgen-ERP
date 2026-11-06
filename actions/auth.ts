@@ -59,6 +59,27 @@ export async function logoutAction() {
   await signOut({ redirectTo: "/login" });
 }
 
+export async function checkSessionStatusAction(): Promise<{ active: boolean; reason?: "EXPIRED" | "DEACTIVATED" }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { active: false, reason: "EXPIRED" };
+    }
+
+    await connectDB();
+    const user = await User.findById(session.user.id).select("isActive").lean();
+    if (!user || !user.isActive) {
+      return { active: false, reason: "DEACTIVATED" };
+    }
+
+    return { active: true };
+  } catch (error) {
+    console.error("Session check error:", error);
+    // On unexpected database connection blip, don't boot user immediately
+    return { active: true };
+  }
+}
+
 export async function updateProfileAction(data: unknown) {
   const session = await auth();
   if (!session?.user?.id) {

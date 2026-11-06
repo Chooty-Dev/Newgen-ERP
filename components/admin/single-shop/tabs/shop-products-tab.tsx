@@ -110,6 +110,18 @@ export function ShopProductsTab({
     },
   });
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onAddItem = async (data: CreateCommunicationItemInput) => {
     try {
       if (data.isTelecomReload) {
@@ -520,7 +532,7 @@ export function ShopProductsTab({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateSubmit(onAddItem)} className="space-y-4 pt-2">
+          <form onSubmit={handleCreateSubmit(onAddItem, onFormValidationError)} className="space-y-4 pt-2">
             <div className="flex items-center justify-between p-4 rounded-2xl border border-muted/30 bg-surface/40">
               <div className="space-y-0.5">
                 <label className="text-xs font-bold text-foreground block">
@@ -666,7 +678,7 @@ export function ShopProductsTab({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleEditSubmit(onEditItem)} className="space-y-4 pt-2">
+          <form onSubmit={handleEditSubmit(onEditItem, onFormValidationError)} className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase text-muted-foreground">Item Code *</label>

@@ -47,6 +47,15 @@ export default function LoginPage() {
       document.documentElement.classList.remove("dark");
       document.documentElement.style.colorScheme = "light";
     }
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "1") {
+        setErrorMsg("Your session has expired. Please sign in again to continue.");
+      } else if (params.get("deactivated") === "1") {
+        setErrorMsg("Your account has been deactivated. Please contact your administrator.");
+      }
+    }
   }, []);
 
   const {

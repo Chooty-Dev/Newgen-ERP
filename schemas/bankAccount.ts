@@ -25,7 +25,7 @@ export const bankDepositWithdrawSchema = z.object({
   type: z.enum(["DEPOSIT", "WITHDRAWAL"]),
   amount: z.number().positive("Amount must be greater than 0"),
   referenceNumber: z.string().optional().or(z.literal("")),
-  reason: z.string().min(2, "Reason is required"),
+  reason: z.string(),
   date: z.string().min(1, "Date is required"),
 });
 

@@ -205,6 +205,30 @@ export function UsersView({
     setLoading(false);
   };
 
+  const handleCreateShopChange = (ids: string[]) => {
+    setCreateShopIds(ids);
+    createForm.setValue("shops", ids, { shouldValidate: true });
+    createForm.setValue("shop", ids.length > 0 ? ids[0] : "", { shouldValidate: true });
+  };
+
+  const handleEditShopChange = (ids: string[]) => {
+    setEditShopIds(ids);
+    editForm.setValue("shops", ids, { shouldValidate: true });
+    editForm.setValue("shop", ids.length > 0 ? ids[0] : "", { shouldValidate: true });
+  };
+
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onCreateSubmit = async (data: CreateUserInput) => {
     const payload = {
       ...data,
@@ -269,7 +293,8 @@ export function UsersView({
       email: user.email,
       phone: user.phone || "",
       role: user.role,
-      shop: user.shop?._id || "",
+      shop: existingShopIds[0] || user.shop?._id || "",
+      shops: existingShopIds,
       isActive: user.isActive,
       password: "",
     });
@@ -514,7 +539,7 @@ export function UsersView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-5">
+          <form onSubmit={createForm.handleSubmit(onCreateSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -561,6 +586,9 @@ export function UsersView({
                   {...createForm.register("password")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Min. 8 characters with at least 1 uppercase, 1 number, and 1 symbol.
+                </p>
                 {createForm.formState.errors.password && (
                   <p className="text-xs font-medium text-destructive">
                     {createForm.formState.errors.password.message}
@@ -573,7 +601,16 @@ export function UsersView({
                   Access Role
                 </label>
                 <select
-                  {...createForm.register("role")}
+                  {...createForm.register("role", {
+                    onChange: (e) => {
+                      if (e.target.value !== "STAFF") {
+                        setCreateShopIds([]);
+                        createForm.setValue("shops", []);
+                        createForm.setValue("shop", "");
+                        createForm.clearErrors("shop");
+                      }
+                    },
+                  })}
                   className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
                   <option value="STAFF">Finance Officer (Branch Staff)</option>
@@ -584,11 +621,18 @@ export function UsersView({
             </div>
 
             {createForm.watch("role") === "STAFF" && (
-              <BranchCheckboxList
-                shops={shops}
-                selectedShopIds={createShopIds}
-                onChange={setCreateShopIds}
-              />
+              <div className="space-y-2">
+                <BranchCheckboxList
+                  shops={shops}
+                  selectedShopIds={createShopIds}
+                  onChange={handleCreateShopChange}
+                />
+                {createForm.formState.errors.shop && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.shop.message}
+                  </p>
+                )}
+              </div>
             )}
 
             <DialogFooter className="gap-3 pt-4">
@@ -628,7 +672,7 @@ export function UsersView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -638,6 +682,11 @@ export function UsersView({
                   {...editForm.register("name")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {editForm.formState.errors.name && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.name.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -649,6 +698,11 @@ export function UsersView({
                   {...editForm.register("email")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {editForm.formState.errors.email && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.email.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -663,6 +717,14 @@ export function UsersView({
                   {...editForm.register("password")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Min. 8 characters with uppercase, number, and symbol if resetting.
+                </p>
+                {editForm.formState.errors.password && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.password.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -670,7 +732,16 @@ export function UsersView({
                   Access Role
                 </label>
                 <select
-                  {...editForm.register("role")}
+                  {...editForm.register("role", {
+                    onChange: (e) => {
+                      if (e.target.value !== "STAFF") {
+                        setEditShopIds([]);
+                        editForm.setValue("shops", []);
+                        editForm.setValue("shop", "");
+                        editForm.clearErrors("shop");
+                      }
+                    },
+                  })}
                   className="w-full h-12 rounded-2xl border border-muted/30 bg-surface/40 text-foreground px-4 text-sm font-medium outline-none focus:border-foreground/50"
                 >
                   <option value="STAFF">Finance Officer (Branch Staff)</option>
@@ -681,11 +752,18 @@ export function UsersView({
             </div>
 
             {editForm.watch("role") === "STAFF" && (
-              <BranchCheckboxList
-                shops={shops}
-                selectedShopIds={editShopIds}
-                onChange={setEditShopIds}
-              />
+              <div className="space-y-2">
+                <BranchCheckboxList
+                  shops={shops}
+                  selectedShopIds={editShopIds}
+                  onChange={handleEditShopChange}
+                />
+                {editForm.formState.errors.shop && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.shop.message}
+                  </p>
+                )}
+              </div>
             )}
 
             <DialogFooter className="gap-3 pt-4">

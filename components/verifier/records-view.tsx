@@ -125,6 +125,18 @@ export function RecordsView({
     setReviewOpen(true);
   };
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onReviewSubmit = async (data: ReviewFinanceRecordInput) => {
     const res = await reviewFinanceRecordAction(data);
     if (res.success) {
@@ -818,7 +830,7 @@ export function RecordsView({
               ) : (
                 /* Action Form for Pending Records */
                 <form
-                  onSubmit={reviewForm.handleSubmit(onReviewSubmit)}
+                  onSubmit={reviewForm.handleSubmit(onReviewSubmit, onFormValidationError)}
                   className="flex flex-col flex-1 min-h-0 justify-between"
                 >
                   <div className="flex-1 overflow-y-auto no-scrollbar space-y-5 pr-1">
@@ -882,6 +894,11 @@ export function RecordsView({
                             {...reviewForm.register("approvedAmount", { valueAsNumber: true })}
                             className="h-12 rounded-2xl bg-surface/30 border-muted/30 font-mono text-base font-bold text-foreground focus:border-foreground/50 transition-colors"
                           />
+                          {reviewForm.formState.errors.approvedAmount && (
+                            <p className="text-xs text-destructive font-medium">
+                              {reviewForm.formState.errors.approvedAmount.message}
+                            </p>
+                          )}
                           <p className="text-[11px] text-muted-foreground">
                             Defaults to submitted amount. You can adjust if partial approval is authorized.
                           </p>

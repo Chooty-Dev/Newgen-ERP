@@ -94,7 +94,14 @@ export function AppHeader({ user }: AppHeaderProps) {
 
   const segments = pathname.split("/").filter(Boolean);
   const breadcrumbItems = segments.map((seg, idx) => {
-    const url = "/" + segments.slice(0, idx + 1).join("/");
+    let url = "/" + segments.slice(0, idx + 1).join("/");
+    if (seg === "admin") {
+      url = "/dashboard/admin/dashboard";
+    } else if (seg === "verifier") {
+      url = "/dashboard/verifier/dashboard";
+    } else if (seg === "staff") {
+      url = "/dashboard/staff/dashboard";
+    }
     let formatted = seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " ");
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(seg);

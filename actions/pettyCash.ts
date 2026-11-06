@@ -11,6 +11,7 @@ import { isAdmin } from "@/lib/rbac";
 import { logAuditEvent } from "@/lib/audit";
 import { Category } from "@/models/Category";
 import mongoose from "mongoose";
+import { revalidatePath } from "next/cache";
 
 async function getOrCreatePettyCashAccount() {
   let account = await PettyCashAccount.findOne();
@@ -131,7 +132,10 @@ export async function topUpWithdrawPettyCashAction(formData: unknown) {
     return { success: false, error: "Unauthorized. Admin privileges required." };
   }
 
-  const cleanData = sanitizeInput(formData);
+  const cleanData = sanitizeInput(formData) as any;
+  if (cleanData && typeof cleanData === "object" && cleanData.type === "WITHDRAW") {
+    cleanData.type = "WITHDRAWAL";
+  }
   const result = pettyCashTransactionSchema.safeParse(cleanData);
 
   if (!result.success) {
@@ -159,8 +163,15 @@ export async function topUpWithdrawPettyCashAction(formData: unknown) {
 
     let sourceBankInfo = "";
     let bankDoc: any = null;
-    if (result.data.sourceBankAccount) {
-      const bank = await BankAccount.findById(result.data.sourceBankAccount);
+    const bankAccountId =
+      result.data.sourceBankAccount &&
+      result.data.sourceBankAccount.trim() !== "" &&
+      mongoose.Types.ObjectId.isValid(result.data.sourceBankAccount.trim())
+        ? result.data.sourceBankAccount.trim()
+        : null;
+
+    if (bankAccountId) {
+      const bank = await BankAccount.findById(bankAccountId);
       if (bank) {
         bankDoc = bank;
         if (isTopUp) {
@@ -198,9 +209,12 @@ export async function topUpWithdrawPettyCashAction(formData: unknown) {
     const datePrefix = new Date(result.data.date).toISOString().slice(2, 7).replace("-", "");
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const pcBillNumber = isTopUp ? `PC-TOP-${datePrefix}-${randomSuffix}` : `PC-WD-${datePrefix}-${randomSuffix}`;
+    const rawReason = result.data.reason?.trim();
+    const defaultActionReason = isTopUp ? "Central Petty Cash Top-up" : "Central Petty Cash Withdrawal";
+    const baseReason = rawReason || defaultActionReason;
     const pcReason = sourceBankInfo
-      ? `${result.data.reason.trim()} (${sourceBankInfo})`
-      : result.data.reason.trim();
+      ? `${baseReason} (${sourceBankInfo})`
+      : baseReason;
 
     await FinanceRecord.create({
       date: new Date(result.data.date),
@@ -265,6 +279,10 @@ export async function topUpWithdrawPettyCashAction(formData: unknown) {
         bankAccountId: bankDoc?._id?.toString(),
       },
     });
+
+    revalidatePath("/dashboard/admin/petty-cash");
+    revalidatePath("/dashboard/admin/bank-accounts");
+    revalidatePath("/dashboard/admin/dashboard");
 
     return {
       success: true,

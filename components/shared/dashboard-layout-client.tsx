@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toast";
 import { ShopNavProvider } from "@/components/shared/shop-nav-context";
 
 import { WhatsNewTour } from "@/components/shared/whats-new-tour";
+import { SessionTimeoutWatcher } from "@/components/shared/session-timeout-watcher";
 
 interface DashboardLayoutClientProps {
   user: {
@@ -39,6 +40,7 @@ export function DashboardLayoutClient({
           </div>
         </div>
         <WhatsNewTour user={user} />
+        <SessionTimeoutWatcher />
         <Toaster />
       </SidebarProvider>
     </ShopNavProvider>

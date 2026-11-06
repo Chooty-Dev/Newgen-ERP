@@ -164,6 +164,18 @@ export function BankAccountsView({
     fetchData();
   }, [fetchData]);
 
+  const onFormValidationError = (errors: any) => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errors[errorKeys[0]];
+      toast.create({
+        title: "Validation error",
+        description: firstError?.message || "Please check the highlighted fields.",
+        type: "error",
+      });
+    }
+  };
+
   const onCreateAccountSubmit = async (data: CreateBankAccountInput) => {
     try {
       const res = await createBankAccountAction(data);
@@ -567,7 +579,7 @@ export function BankAccountsView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={createForm.handleSubmit(onCreateAccountSubmit)} className="space-y-5">
+          <form onSubmit={createForm.handleSubmit(onCreateAccountSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -594,6 +606,11 @@ export function BankAccountsView({
                   {...createForm.register("accountName")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {createForm.formState.errors.accountName && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.accountName.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -607,6 +624,11 @@ export function BankAccountsView({
                   {...createForm.register("accountNumber")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
                 />
+                {createForm.formState.errors.accountNumber && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.accountNumber.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -619,6 +641,11 @@ export function BankAccountsView({
                   {...createForm.register("initialBalance", { valueAsNumber: true })}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
                 />
+                {createForm.formState.errors.initialBalance && (
+                  <p className="text-xs font-medium text-destructive">
+                    {createForm.formState.errors.initialBalance.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -659,7 +686,7 @@ export function BankAccountsView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={editForm.handleSubmit(onEditAccountSubmit)} className="space-y-5">
+          <form onSubmit={editForm.handleSubmit(onEditAccountSubmit, onFormValidationError)} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -669,6 +696,11 @@ export function BankAccountsView({
                   {...editForm.register("bankName")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {editForm.formState.errors.bankName && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.bankName.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -679,6 +711,11 @@ export function BankAccountsView({
                   {...editForm.register("accountName")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm"
                 />
+                {editForm.formState.errors.accountName && (
+                  <p className="text-xs font-medium text-destructive">
+                    {editForm.formState.errors.accountName.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -690,6 +727,11 @@ export function BankAccountsView({
                 {...editForm.register("accountNumber")}
                 className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono"
               />
+              {editForm.formState.errors.accountNumber && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.accountNumber.message}
+                </p>
+              )}
             </div>
 
             <DialogFooter className="gap-3 pt-4">
@@ -729,7 +771,7 @@ export function BankAccountsView({
             </p>
           </DialogHeader>
 
-          <form onSubmit={actionForm.handleSubmit(onDepositWithdrawSubmit)} className="space-y-5">
+          <form onSubmit={actionForm.handleSubmit(onDepositWithdrawSubmit, onFormValidationError)} className="space-y-5">
             <input type="hidden" {...actionForm.register("accountId")} />
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -755,6 +797,11 @@ export function BankAccountsView({
                   {...actionForm.register("date")}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-medium"
                 />
+                {actionForm.formState.errors.date && (
+                  <p className="text-xs font-medium text-destructive">
+                    {actionForm.formState.errors.date.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -769,6 +816,11 @@ export function BankAccountsView({
                   {...actionForm.register("amount", { valueAsNumber: true })}
                   className="h-12 rounded-2xl bg-surface/40 border-muted/30 text-sm font-mono font-bold"
                 />
+                {actionForm.formState.errors.amount && (
+                  <p className="text-xs font-medium text-destructive">
+                    {actionForm.formState.errors.amount.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -785,7 +837,7 @@ export function BankAccountsView({
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Notes
+                Notes (Optional)
               </label>
               <Textarea
                 placeholder="Purpose or reason"
@@ -793,6 +845,11 @@ export function BankAccountsView({
                 className="rounded-2xl bg-surface/40 border-muted/30 text-sm p-4"
                 rows={3}
               />
+              {actionForm.formState.errors.reason && (
+                <p className="text-xs font-medium text-destructive">
+                  {actionForm.formState.errors.reason.message}
+                </p>
+              )}
             </div>
 
             <DialogFooter className="gap-3 pt-4">

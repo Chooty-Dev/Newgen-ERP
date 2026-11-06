@@ -231,6 +231,7 @@ export async function bankDepositWithdrawAction(formData: unknown) {
     const datePrefix = new Date(result.data.date).toISOString().slice(2, 7).replace("-", "");
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const bnkBillNumber = result.data.referenceNumber?.trim() || (isDeposit ? `BNK-DEP-${datePrefix}-${randomSuffix}` : `BNK-WD-${datePrefix}-${randomSuffix}`);
+    const finalReason = result.data.reason?.trim() || (isDeposit ? "Direct Bank Deposit" : "Direct Bank Withdrawal");
 
     await FinanceRecord.create({
       date: new Date(result.data.date),
@@ -238,7 +239,7 @@ export async function bankDepositWithdrawAction(formData: unknown) {
       bankAccount: account._id,
       billNumber: bnkBillNumber,
       category: defaultCategory?._id || null,
-      reason: result.data.reason.trim(),
+      reason: finalReason,
       amount,
       type: isDeposit ? "INCOME" : "EXPENSE",
       status: "APPROVED",
