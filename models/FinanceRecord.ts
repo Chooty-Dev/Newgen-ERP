@@ -66,7 +66,7 @@ export interface IFinanceRecord extends Document {
   interBranchSettlementStatus?: "UNSETTLED" | "SETTLED";
   settledAt?: Date | null;
   settledBy?: mongoose.Types.ObjectId | null;
-  settlementType?: "HANDOVER_TO_BRANCH" | "DEPOSITED_TO_BANK" | "DIRECT_OFFSET" | null;
+  settlementType?: "HANDOVER_TO_BRANCH" | "DEPOSITED_TO_BANK" | "DIRECT_OFFSET" | "PETTY_CASH_TRANSFER" | null;
   settlementReference?: string;
   settlementNote?: string;
 
@@ -358,7 +358,7 @@ const FinanceRecordSchema = new Schema<IFinanceRecord>(
     },
     settlementType: {
       type: String,
-      enum: ["HANDOVER_TO_BRANCH", "DEPOSITED_TO_BANK", "DIRECT_OFFSET"],
+      enum: ["HANDOVER_TO_BRANCH", "DEPOSITED_TO_BANK", "DIRECT_OFFSET", "PETTY_CASH_TRANSFER"],
       default: null,
     },
     settlementReference: {

@@ -702,7 +702,16 @@ export async function reviewFinanceRecordAction(formData: unknown) {
     };
   }
 
-  const cleanData = sanitizeInput(formData);
+  const cleanData = sanitizeInput(formData) as Record<string, any>;
+  if (cleanData && typeof cleanData === "object") {
+    if (typeof cleanData.approvedAmount === "string") {
+      const trimmed = cleanData.approvedAmount.trim();
+      cleanData.approvedAmount = trimmed === "" ? null : Number(trimmed);
+    }
+    if (typeof cleanData.approvedAmount === "number" && isNaN(cleanData.approvedAmount)) {
+      cleanData.approvedAmount = null;
+    }
+  }
   const result = reviewFinanceRecordSchema.safeParse(cleanData);
 
   if (!result.success) {
@@ -802,6 +811,15 @@ export async function reviewFinanceRecordAction(formData: unknown) {
         remarks: record.reviewRemarks,
       },
     });
+
+    revalidatePath("/dashboard/verifier/records");
+    revalidatePath("/dashboard/verifier");
+    revalidatePath("/dashboard/staff/finances");
+    revalidatePath("/dashboard/staff/dashboard");
+    revalidatePath("/dashboard/admin/transactions");
+    if (record.shop) {
+      revalidatePath(`/dashboard/admin/shops/${record.shop.toString()}`);
+    }
 
     return {
       success: true,

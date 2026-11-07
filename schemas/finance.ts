@@ -183,7 +183,7 @@ export const settleInterBranchCashSchema = z.object({
   recordIds: z.array(z.string()).min(1, "At least one record must be selected for settlement"),
   holdingShopId: z.string().min(1, "Holding branch is required"),
   targetShopId: z.string().optional().nullable(),
-  settlementType: z.enum(["HANDOVER_TO_BRANCH", "DEPOSITED_TO_BANK", "DIRECT_OFFSET"]),
+  settlementType: z.enum(["HANDOVER_TO_BRANCH", "DEPOSITED_TO_BANK", "DIRECT_OFFSET", "PETTY_CASH_TRANSFER"]),
   bankAccountId: z.string().optional().nullable(),
   reference: z.string().optional(),
   note: z.string().optional(),
