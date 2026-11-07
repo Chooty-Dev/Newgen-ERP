@@ -38,6 +38,7 @@ import {
   Settings,
   ArrowUpRight,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { useShopNav } from "@/components/shared/shop-nav-context";
 import { SunMoonThemeToggle } from "./animated-theme-toggle";
@@ -60,6 +61,19 @@ export function AppHeader({ user }: AppHeaderProps) {
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleOpen = () => setProfileOpen(true);
+    const handleClose = () => setProfileOpen(false);
+
+    window.addEventListener("newgen-open-profile-dialog", handleOpen);
+    window.addEventListener("newgen-close-profile-dialog", handleClose);
+
+    return () => {
+      window.removeEventListener("newgen-open-profile-dialog", handleOpen);
+      window.removeEventListener("newgen-close-profile-dialog", handleClose);
+    };
+  }, []);
 
   const handleLogout = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -142,22 +156,22 @@ export function AppHeader({ user }: AppHeaderProps) {
           <Breadcrumb>
             <BreadcrumbList className="text-base font-medium">
               {breadcrumbItems.map((item, index) => (
-                <React.Fragment key={item.url}>
-                  {index > 0 && <BreadcrumbSeparator className="text-muted-foreground/60" />}
-                  <BreadcrumbItem>
-                    {item.isLast ? (
-                      <BreadcrumbPage className="font-semibold text-foreground text-base">
-                        {item.name}
-                      </BreadcrumbPage>
-                    ) : (
-                      <BreadcrumbLink render={<Link href={item.url} />} className="text-muted-foreground hover:text-foreground text-base">
-                        {item.name}
-                      </BreadcrumbLink>
-                    )}
-                  </BreadcrumbItem>
-                </React.Fragment>
+                  <React.Fragment key={`${item.url}-${index}`}>
+                    {index > 0 && <BreadcrumbSeparator className="text-muted-foreground/60" />}
+                    <BreadcrumbItem>
+                      {item.isLast ? (
+                        <BreadcrumbPage className="font-semibold text-foreground text-base">
+                          {item.name}
+                        </BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink render={<Link href={item.url} />} className="text-muted-foreground hover:text-foreground text-base">
+                          {item.name}
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                  </React.Fragment>
               ))}
-            </BreadcrumbList>
+                </BreadcrumbList>
           </Breadcrumb>
         </div>
       </div>
@@ -184,6 +198,9 @@ export function AppHeader({ user }: AppHeaderProps) {
             render={
               <button
                 data-tour="header-profile"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("newgen-profile-clicked"));
+                }}
                 className="flex items-center gap-3 rounded-2xl px-3 py-2 text-foreground hover:bg-surface/50 transition-colors"
               />
             }
@@ -225,6 +242,23 @@ export function AppHeader({ user }: AppHeaderProps) {
                   </span>
                   <ArrowUpRight className="size-5" />
                 </Button>
+
+                {user.role === "ADMIN" && (
+                  <Button
+                    data-tour="header-changelog"
+                    className="w-full justify-between h-14 rounded-2xl bg-surface/60 hover:bg-surface/90 text-foreground border border-muted/20 text-base font-medium px-5 cursor-pointer"
+                    render={<Link href="/dashboard/admin/changelog" onClick={() => setProfileOpen(false)} />}
+                  >
+                    <span className="flex items-center gap-3">
+                      <Sparkles className="size-5 text-emerald-500" />
+                      <span>Changelog</span>
+                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/30">
+                        v2.1.0
+                      </span>
+                    </span>
+                    <ArrowUpRight className="size-5" />
+                  </Button>
+                )}
 
                 <Button
                   variant="outline"

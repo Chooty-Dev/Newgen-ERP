@@ -38,10 +38,25 @@ export function WhatsNewTour({ user }: WhatsNewTourProps) {
       {
         id: "header-profile",
         targetSelector: '[data-tour="header-profile"]',
-        title: "New Profile Card",
+        title: user.role === "ADMIN" ? "Admin Profile & Changelog" : "New Profile Card",
         description:
-          "Access your account details, active branch, operational role, and quick settings directly from the header profile trigger.",
+          user.role === "ADMIN"
+            ? "Click your profile card here to access account settings, role privileges, and the all-new System Changelog."
+            : "Access your account details, active branch, operational role, and quick settings directly from the header profile trigger.",
       },
+    ];
+
+    if (user.role === "ADMIN") {
+      commonSteps.push({
+        id: "header-changelog",
+        targetSelector: '[data-tour="header-changelog"]',
+        title: "System Changelog (v2.1.0)",
+        description:
+          "Discover all system updates, what's new in UI redesigns, bug fixes, and semantic versioning specs in the dedicated Changelog page.",
+      });
+    }
+
+    commonSteps.push(
       {
         id: "header-theme",
         targetSelector: '[data-tour="header-theme"]',
@@ -55,8 +70,8 @@ export function WhatsNewTour({ user }: WhatsNewTourProps) {
         title: "Seamless Sidebar Navigation",
         description:
           "Navigate modules smoothly with borderless navigation menus and switch active branches on the fly.",
-      },
-    ];
+      }
+    );
 
     if (user.role === "ADMIN") {
       commonSteps.push({
@@ -138,7 +153,7 @@ export function WhatsNewTour({ user }: WhatsNewTourProps) {
   const tours = React.useMemo<TourConfig[]>(() => {
     return [
       {
-        id: "tour_dashboard_v1",
+        id: "tour_dashboard_v2",
         matchPath: (p: string) =>
           p === "/dashboard" ||
           p === "/dashboard/admin/dashboard" ||
@@ -158,6 +173,36 @@ export function WhatsNewTour({ user }: WhatsNewTourProps) {
       },
     ];
   }, [dashboardSteps, singleShopSteps, staffFinancesSteps]);
+
+  // Synchronize profile dialog visibility with the tour step
+  React.useEffect(() => {
+    if (!activeTour || !isOpen) return;
+    const currentStep = activeTour.steps[currentStepIndex];
+    if (currentStep?.id === "header-changelog") {
+      window.dispatchEvent(new CustomEvent("newgen-open-profile-dialog"));
+    } else {
+      window.dispatchEvent(new CustomEvent("newgen-close-profile-dialog"));
+    }
+  }, [activeTour, currentStepIndex, isOpen]);
+
+  // If user clicks the profile trigger button during step 1, advance to changelog step
+  React.useEffect(() => {
+    const onProfileClicked = () => {
+      if (!activeTour || !isOpen) return;
+      const currentStep = activeTour.steps[currentStepIndex];
+      if (currentStep?.id === "header-profile") {
+        const changelogIdx = activeTour.steps.findIndex((s) => s.id === "header-changelog");
+        if (changelogIdx !== -1) {
+          setCurrentStepIndex(changelogIdx);
+        }
+      }
+    };
+
+    window.addEventListener("newgen-profile-clicked", onProfileClicked);
+    return () => {
+      window.removeEventListener("newgen-profile-clicked", onProfileClicked);
+    };
+  }, [activeTour, currentStepIndex, isOpen]);
 
   // Determine active tour based on pathname & localStorage
   React.useEffect(() => {
@@ -232,6 +277,7 @@ export function WhatsNewTour({ user }: WhatsNewTourProps) {
   }, [updateTargetRect]);
 
   const markTourCompleted = React.useCallback(() => {
+    window.dispatchEvent(new CustomEvent("newgen-close-profile-dialog"));
     if (activeTour) {
       const storageKey = `newgen_tour_${activeTour.id}_${user.id}`;
       localStorage.setItem(storageKey, "true");

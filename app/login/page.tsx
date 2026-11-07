@@ -263,7 +263,7 @@ export default function LoginPage() {
         {/* Footer */}
         <div className="flex items-center justify-between text-xs text-muted-foreground/70 pt-4">
           <span>Newgen Financial Systems</span>
-          <span className="font-mono">v2.0.0</span>
+          <span className="font-mono">v2.1.0</span>
         </div>
       </div>
 
