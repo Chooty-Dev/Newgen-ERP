@@ -14,6 +14,7 @@ import { DailySettlement } from "@/models/DailySettlement";
 import { getShopCashBalance, recalculateShopRunningBalance } from "@/lib/balance";
 import { recordDailySettlementSchema } from "@/schemas/dailySettlement";
 import mongoose from "mongoose";
+import { revalidatePath } from "next/cache";
 
 async function getOrCreatePettyCashAccount() {
   let account = await PettyCashAccount.findOne();
@@ -467,6 +468,11 @@ export async function recordDailyCashSettlementAction(formData: unknown) {
     const interBranchNotice = settledInterBranchIds.length > 0
       ? ` Also auto-settled ${settledInterBranchIds.length} inter-branch collection(s) (LKR ${settledInterBranchAmount.toLocaleString()}) for other branches.`
       : "";
+
+    revalidatePath("/dashboard/staff/finances");
+    revalidatePath("/dashboard/staff/dashboard");
+    revalidatePath("/dashboard/admin/shops");
+    revalidatePath(`/dashboard/admin/shops/${shop._id}`);
 
     return {
       success: true,

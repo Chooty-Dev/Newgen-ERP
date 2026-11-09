@@ -16,53 +16,102 @@ import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
 
 /**
- * Quick search for a credit customer by phone number.
+ * Smart search for credit customers by Name or Phone number.
+ * Returns up to 3 top matching results strictly when searching (no default results when empty).
  */
-export async function searchCreditCustomerAction(phone: string, shopId?: string | null) {
+export async function searchCreditCustomerAction(query?: string | null, shopId?: string | null) {
   const session = await auth();
   if (!session?.user?.id) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (!phone || phone.trim().length < 3) {
-    return { success: true, customer: null };
+    return { success: false, error: "Unauthorized", customer: null, customers: [] };
   }
 
   try {
     await connectDB();
-    const cleanPhone = phone.trim();
+    const cleanQuery = (query || "").trim();
+    if (cleanQuery.length < 2) {
+      // Do not return default results if search query is empty or too short
+      return { success: true, customers: [], customer: null };
+    }
 
-    let customer = null;
+    const digitsOnly = cleanQuery.replace(/\D/g, "");
+    const escapedQuery = cleanQuery.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+
+    const orConditions: any[] = [
+      { name: { $regex: escapedQuery, $options: "i" } },
+      { phone: { $regex: escapedQuery, $options: "i" } },
+    ];
+
+    if (digitsOnly.length >= 2) {
+      const spacedRegex = digitsOnly.split("").join("[\\s\\-]*");
+      orConditions.push({ phone: { $regex: spacedRegex, $options: "i" } });
+      if (digitsOnly.startsWith("94") && digitsOnly.length > 9) {
+        const without94 = digitsOnly.slice(2);
+        orConditions.push({ phone: { $regex: without94.split("").join("[\\s\\-]*"), $options: "i" } });
+        orConditions.push({ phone: { $regex: ("0" + without94).split("").join("[\\s\\-]*"), $options: "i" } });
+      } else if (digitsOnly.startsWith("0") && digitsOnly.length > 8) {
+        const without0 = digitsOnly.slice(1);
+        orConditions.push({ phone: { $regex: without0.split("").join("[\\s\\-]*"), $options: "i" } });
+      }
+    }
+
+    let currentShopCustomers: any[] = [];
     if (shopId) {
-      customer = await CustomerCredit.findOne({
-        phone: { $regex: cleanPhone, $options: "i" },
+      currentShopCustomers = await CustomerCredit.find({
         shop: new mongoose.Types.ObjectId(shopId),
+        $or: orConditions,
       })
         .populate("shop", "name code shopType")
+        .sort({ currentBalance: -1, lastActivityDate: -1 })
+        .limit(10)
         .lean();
     }
 
-    // If not found in current shop, look across all branches
-    if (!customer) {
-      customer = await CustomerCredit.findOne({
-        phone: { $regex: cleanPhone, $options: "i" },
-      })
-        .populate("shop", "name code shopType")
-        .lean();
+    let otherBranchCustomers: any[] = [];
+    const excludeIds = currentShopCustomers.map((c) => c._id);
+    const otherQuery: any = {
+      _id: { $nin: excludeIds },
+      $or: orConditions,
+    };
+    if (shopId) {
+      otherQuery.shop = { $ne: new mongoose.Types.ObjectId(shopId) };
     }
 
-    if (!customer) {
-      return { success: true, customer: null };
+    otherBranchCustomers = await CustomerCredit.find(otherQuery)
+      .populate("shop", "name code shopType")
+      .sort({ currentBalance: -1, lastActivityDate: -1 })
+      .limit(10)
+      .lean();
+
+    // Merge and prioritize customers with active debt first
+    const rawFound = [...currentShopCustomers, ...otherBranchCustomers].sort((a, b) => {
+      if (b.currentBalance !== a.currentBalance) {
+        return b.currentBalance - a.currentBalance;
+      }
+      return new Date(b.lastActivityDate || 0).getTime() - new Date(a.lastActivityDate || 0).getTime();
+    });
+
+    // Deduplicate by shop ID + normalized 9-digit phone (prioritizes active debt first).
+    // This cleanly handles cases where existing database records had duplicate entries (e.g. one with spaces and one without).
+    const seen = new Set<string>();
+    const deduplicatedFound: any[] = [];
+    for (const c of rawFound) {
+      const cShopId = (c.shop?._id || c.shop || "").toString();
+      const cCoreDigits = (c.phone || "").replace(/\D/g, "").slice(-9);
+      const key = `${cShopId}_${cCoreDigits}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicatedFound.push(c);
+      }
     }
 
-    const customerShopDoc = customer.shop as any;
+    const allFound = deduplicatedFound.slice(0, 3);
 
-    const result = {
-      success: true,
-      customer: {
+    const formattedCustomers = allFound.map((customer) => {
+      const customerShopDoc = customer.shop as any;
+      return {
         _id: customer._id.toString(),
         name: customer.name,
-        phone: customer.phone,
+        phone: (customer.phone || "").replace(/\s+/g, ""),
         shop: customerShopDoc
           ? {
               _id: customerShopDoc._id.toString(),
@@ -75,13 +124,17 @@ export async function searchCreditCustomerAction(phone: string, shopId?: string 
         totalPaid: customer.totalPaid,
         currentBalance: customer.currentBalance,
         lastActivityDate: customer.lastActivityDate?.toISOString(),
-      },
-    };
+      };
+    });
 
-    return JSON.parse(JSON.stringify(result));
+    return {
+      success: true,
+      customers: JSON.parse(JSON.stringify(formattedCustomers)),
+      customer: formattedCustomers.length > 0 ? JSON.parse(JSON.stringify(formattedCustomers[0])) : null,
+    };
   } catch (error) {
     console.error("Search credit customer error:", error);
-    return { success: false, error: "Failed to search customer." };
+    return { success: false, error: "Failed to search customer.", customer: null, customers: [] };
   }
 }
 
@@ -199,6 +252,7 @@ export async function repayCustomerDebtAction(payload: RepayCustomerDebtInput) {
       customerName: customer.name,
       customerPhone: customer.phone,
       isDebtRepayment: true,
+      isCommunicationItem: shop.shopType === "COMMUNICATION",
 
       // Cross-Branch Payment & Inter-Branch Settlement Fields
       isCrossBranchPayment: isCrossBranch,
@@ -267,6 +321,7 @@ export async function repayCustomerDebtAction(payload: RepayCustomerDebtInput) {
     });
 
     revalidatePath("/dashboard/staff/finances");
+    revalidatePath("/dashboard/staff/dashboard");
     revalidatePath(`/dashboard/admin/shops/${shopId}`);
     if (customerShopId) {
       revalidatePath(`/dashboard/admin/shops/${customerShopId}`);

@@ -180,3 +180,30 @@
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
+
+@keyframes profileEntranceFade {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    filter: blur(6px);
+  }
+  30% {
+    opacity: 0.35;
+    transform: translateY(8px) scale(0.985);
+    filter: blur(3px);
+  }
+  70% {
+    opacity: 0.85;
+    transform: translateY(2px) scale(0.995);
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.animate-profile-entrance {
+  animation: profileEntranceFade 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

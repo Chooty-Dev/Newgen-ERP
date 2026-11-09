@@ -78,6 +78,8 @@ import {
   DropletIcon,
   LightbulbIcon,
   SlidersHorizontalIcon,
+  SearchIcon,
+  XIcon,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { recordItemWastageAction } from "@/actions/communication";
@@ -241,9 +243,11 @@ export function FinancesView({
   } | null>(null);
   const [commBankAccountId, setCommBankAccountId] = React.useState<string | null>(null);
 
-  // Debt Repayment Modal State
+  // Debt Repayment Modal State (Smart Side-by-Side Search & Settle)
   const [debtRepayOpen, setDebtRepayOpen] = React.useState(false);
-  const [repayPhone, setRepayPhone] = React.useState("");
+  const [repaySearchQuery, setRepaySearchQuery] = React.useState("");
+  const [repaySearchResults, setRepaySearchResults] = React.useState<any[]>([]);
+  const [searchingRepay, setSearchingRepay] = React.useState(false);
   const [repayCustomer, setRepayCustomer] = React.useState<{
     _id: string;
     name: string;
@@ -260,7 +264,10 @@ export function FinancesView({
   const [repayBankId, setRepayBankId] = React.useState<string | null>(null);
   const [repayNote, setRepayNote] = React.useState("");
   const [submittingRepay, setSubmittingRepay] = React.useState(false);
-  const [searchingCustomer, setSearchingCustomer] = React.useState(false);
+
+  // Credit Customer Lookup for POS Sale
+  const [commCustomerSearchResults, setCommCustomerSearchResults] = React.useState<any[]>([]);
+  const [searchingCommCustomer, setSearchingCommCustomer] = React.useState(false);
 
   // Utility Bill Payment Modal State (Communication Shop: Light/Water Bills)
   const [utilityBillOpen, setUtilityBillOpen] = React.useState(false);
@@ -392,31 +399,101 @@ export function FinancesView({
     }
   };
 
-  const handleLookupCustomer = async (phone: string, target: "SALE" | "REPAY") => {
-    if (phone.trim().length >= 3) {
-      if (target === "REPAY") setSearchingCustomer(true);
-      const res = await searchCreditCustomerAction(phone, userShopId || undefined);
-      if (target === "REPAY") setSearchingCustomer(false);
+  // Open Debt Repayment Modal (Clean Initial State, No Default Results)
+  const handleOpenDebtRepay = () => {
+    setDebtRepayOpen(true);
+    setRepaySearchQuery("");
+    setRepaySearchResults([]);
+    setRepayCustomer(null);
+    setRepayAmount(0);
+    setRepayNote("");
+    setRepayMethod("CASH");
+    setRepayBankId(null);
+    setSearchingRepay(false);
+  };
 
-      if (res.success && res.customer) {
-        if (target === "SALE") {
-          setExistingCreditCustomer(res.customer);
-          setCommCustomerName(res.customer.name);
-        } else {
-          setRepayCustomer(res.customer);
-          setRepayAmount(res.customer.currentBalance);
-        }
+  // Search Customer (by Name or Mobile) with max 3 accurate results
+  const handleRepaySearchChange = async (query: string) => {
+    setRepaySearchQuery(query);
+    if (!query || query.trim().length < 2) {
+      setRepaySearchResults([]);
+      setSearchingRepay(false);
+      return;
+    }
+    setSearchingRepay(true);
+    try {
+      const res = await searchCreditCustomerAction(query, userShopId || undefined);
+      if (res.success && res.customers) {
+        setRepaySearchResults(res.customers.slice(0, 3));
       } else {
-        if (target === "SALE") {
-          setExistingCreditCustomer(null);
+        setRepaySearchResults([]);
+      }
+    } catch {
+      setRepaySearchResults([]);
+    } finally {
+      setSearchingRepay(false);
+    }
+  };
+
+  // Select a customer from right-side results panel
+  const handleSelectRepayCustomer = (customer: any) => {
+    setRepayCustomer(customer);
+    setRepayAmount(customer.currentBalance || 0);
+  };
+
+  // Search Customer in POS Communication Sale Form (by Name or Phone)
+  const handleCommCustomerSearch = async (val: string, field: "PHONE" | "NAME") => {
+    let cleanVal = val;
+    if (field === "PHONE") {
+      // Disallow any spaces and non-digit characters (keep max 10 digits)
+      cleanVal = val.replace(/\s+/g, "").replace(/[^\d+]/g, "").slice(0, 10);
+      setCommCustomerPhone(cleanVal);
+    } else {
+      setCommCustomerName(cleanVal);
+    }
+
+    if (cleanVal.trim().length >= 2) {
+      setSearchingCommCustomer(true);
+      try {
+        const res = await searchCreditCustomerAction(cleanVal, userShopId || undefined);
+        if (res.success && res.customers) {
+          setCommCustomerSearchResults(res.customers);
+          const digitsOnly = cleanVal.replace(/\D/g, "");
+          const exact = res.customers.find((c: any) => {
+            const cDigits = (c.phone || "").replace(/\D/g, "");
+            return (
+              cDigits === digitsOnly ||
+              (digitsOnly.length >= 9 && cDigits.endsWith(digitsOnly.slice(-9)))
+            );
+          });
+          if (exact && digitsOnly.length >= 9) {
+            setExistingCreditCustomer(exact);
+            setCommCustomerName(exact.name);
+            setCommCustomerPhone((exact.phone || "").replace(/\s+/g, ""));
+          } else if (field === "PHONE" && digitsOnly.length < 9) {
+            setExistingCreditCustomer(null);
+          }
         } else {
-          setRepayCustomer(null);
+          setCommCustomerSearchResults([]);
         }
+      } catch {
+        setCommCustomerSearchResults([]);
+      } finally {
+        setSearchingCommCustomer(false);
       }
     } else {
-      if (target === "SALE") setExistingCreditCustomer(null);
-      if (target === "REPAY") setRepayCustomer(null);
+      setCommCustomerSearchResults([]);
+      if (cleanVal.trim().length === 0) {
+        setExistingCreditCustomer(null);
+      }
     }
+  };
+
+  const handleSelectCommCustomerSuggestion = (c: any) => {
+    setCommCustomerPhone((c.phone || "").replace(/\s+/g, ""));
+    setCommCustomerName(c.name);
+    setExistingCreditCustomer(c);
+    setCommCustomerSearchResults([]);
   };
 
   const handleDebtRepaymentSubmit = async (e: React.FormEvent) => {
@@ -463,7 +540,8 @@ export function FinancesView({
           type: "success",
         });
         setDebtRepayOpen(false);
-        setRepayPhone("");
+        setRepaySearchQuery("");
+        setRepaySearchResults([]);
         setRepayCustomer(null);
         setRepayAmount(0);
         setRepayNote("");
@@ -1009,10 +1087,28 @@ export function FinancesView({
     }
 
     if (commPaymentMethod === "CREDIT") {
-      if (!commCustomerPhone.trim()) {
+      const cleanPhone = commCustomerPhone.replace(/\s+/g, "").trim();
+      if (!cleanPhone) {
         toast.create({
           title: "Customer Mobile Required",
           description: "Please enter the customer's mobile number for this credit sale.",
+          type: "error",
+        });
+        return;
+      }
+      if (/\s/.test(commCustomerPhone)) {
+        toast.create({
+          title: "Spaces Not Allowed",
+          description: "Phone number cannot contain spaces.",
+          type: "error",
+        });
+        return;
+      }
+      const digits = cleanPhone.replace(/\D/g, "");
+      if (digits.length !== 10 || !cleanPhone.startsWith("0")) {
+        toast.create({
+          title: "Invalid Mobile Number",
+          description: "Please enter a valid 10-digit mobile number (e.g. 0771234567) without spaces.",
           type: "error",
         });
         return;
@@ -1049,8 +1145,9 @@ export function FinancesView({
           commissionRate: it.commissionRate,
         })),
         paymentMethod: commPaymentMethod,
+        customerCreditId: existingCreditCustomer?._id || null,
         customerName: commPaymentMethod === "CREDIT" ? commCustomerName.trim() : undefined,
-        customerPhone: commPaymentMethod === "CREDIT" ? commCustomerPhone.trim() : undefined,
+        customerPhone: commPaymentMethod === "CREDIT" ? commCustomerPhone.replace(/\s+/g, "").trim() : undefined,
         bankAccountId: commPaymentMethod === "BANK_TRANSFER" ? commBankAccountId : null,
         isRelatedToBranch: commIsRelatedToBranch,
         relatedBranch: commRelatedBranch,
@@ -1571,13 +1668,8 @@ export function FinancesView({
               </Button>
 
               <Button
-                onClick={() => {
-                  setRepayPhone("");
-                  setRepayCustomer(null);
-                  setRepayAmount(0);
-                  setRepayNote("");
-                  setDebtRepayOpen(true);
-                }}
+                data-tour="staff-settle-debt"
+                onClick={handleOpenDebtRepay}
                 disabled={unassignedStaff || !userShopId}
                 variant="outline"
                 className="gap-2 text-xs font-semibold border border-muted/30 bg-surface/30 hover:bg-surface/60 text-amber-600 dark:text-amber-400 h-10 px-4 rounded-2xl cursor-pointer"
@@ -2296,7 +2388,7 @@ export function FinancesView({
                   </div>
                 </div>
 
-                {/* If CREDIT is selected, show Customer Phone & Name with auto-lookup */}
+                {/* If CREDIT is selected, show Customer Phone & Name with smart search lookup */}
                 {commPaymentMethod === "CREDIT" && (
                   <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-3.5">
                     <div className="flex items-center justify-between">
@@ -2315,32 +2407,87 @@ export function FinancesView({
                       <div className="space-y-1.5">
                         <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center justify-between">
                           <span>Mobile Number *</span>
-                          <span className="text-[9px] text-muted-foreground font-normal">(auto-lookup)</span>
+                          <span className="text-[9px] text-muted-foreground font-normal">(search &amp; auto-lookup)</span>
                         </label>
                         <Input
                           placeholder="e.g. 0771234567"
                           value={commCustomerPhone}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setCommCustomerPhone(val);
-                            handleLookupCustomer(val, "SALE");
+                          onChange={(e) => handleCommCustomerSearch(e.target.value, "PHONE")}
+                          onKeyDown={(e) => {
+                            if (e.key === " " || e.key === "Spacebar") {
+                              e.preventDefault();
+                            }
                           }}
+                          maxLength={10}
                           className="h-11 text-xs font-mono font-bold bg-surface/50 border-muted/30 rounded-2xl"
                         />
+                        {commCustomerPhone && (
+                          <div className="text-[10px] pt-0.5">
+                            {existingCreditCustomer ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                <CheckCircle2Icon className="size-3" />
+                                Existing Customer: {existingCreditCustomer.name} (LKR {Number(existingCreditCustomer.currentBalance || 0).toLocaleString()})
+                              </span>
+                            ) : commCustomerPhone.length === 10 ? (
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                + New customer account will be created
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {commCustomerPhone.length}/10 digits (No spaces allowed)
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
-                          Customer Name *
+                        <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center justify-between">
+                          <span>Customer Name *</span>
+                          {searchingCommCustomer && (
+                            <span className="text-[9px] text-primary flex items-center gap-1 font-semibold">
+                              <Loader2Icon className="size-3 animate-spin" /> Searching...
+                            </span>
+                          )}
                         </label>
                         <Input
                           placeholder="e.g. Kamal Perera"
                           value={commCustomerName}
-                          onChange={(e) => setCommCustomerName(e.target.value)}
+                          onChange={(e) => handleCommCustomerSearch(e.target.value, "NAME")}
                           className="h-11 text-xs font-semibold bg-surface/50 border-muted/30 rounded-2xl"
                         />
                       </div>
                     </div>
+
+                    {/* Quick Suggestions for Existing Credit Customers */}
+                    {commCustomerSearchResults.length > 0 && (
+                      <div className="space-y-1.5 pt-1 border-t border-amber-500/20">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Matching Accounts (Click to select)
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {commCustomerSearchResults.slice(0, 4).map((c) => (
+                            <button
+                              key={c._id}
+                              type="button"
+                              onClick={() => handleSelectCommCustomerSuggestion(c)}
+                              className="p-2.5 rounded-xl border border-amber-500/25 bg-surface/40 hover:bg-surface/80 flex items-center justify-between text-left cursor-pointer transition-all text-xs"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <span className="font-bold text-foreground block truncate">{c.name}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{c.phone}</span>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 block">
+                                  LKR {Number(c.currentBalance || 0).toLocaleString()}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground">Select →</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2964,192 +3111,320 @@ export function FinancesView({
         </DialogContent>
       </Dialog>
 
-      {/* DEBT REPAYMENT MODAL */}
+      {/* DEBT REPAYMENT MODAL (Two Separate Isolated Models: Left Form & Right Results) */}
       <Dialog open={debtRepayOpen} onOpenChange={setDebtRepayOpen}>
-        <DialogContent className="glass-panel sm:max-w-lg max-h-[90vh] overflow-y-auto p-6 sm:p-8 rounded-3xl border border-muted/30 shadow-2xl">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                <HandCoinsIcon className="size-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-extrabold text-foreground tracking-tight">
-                  Settle Customer Debt
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  Collect outstanding debt payments from credit customers for {userShopName}. Instant auto-approval and running cash balance update.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <form onSubmit={handleDebtRepaymentSubmit} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                <span>Customer Mobile Number *</span>
-                {searchingCustomer && (
-                  <span className="text-[11px] text-primary flex items-center gap-1 font-semibold">
-                    <Loader2Icon className="size-3.5 animate-spin" /> Searching...
-                  </span>
-                )}
-              </label>
-              <Input
-                placeholder="e.g. 0771234567"
-                value={repayPhone}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRepayPhone(val);
-                  handleLookupCustomer(val, "REPAY");
-                }}
-                className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-bold"
-              />
-            </div>
-
-            {/* Found Customer Details */}
-            {repayCustomer && (
-              <div className="p-5 rounded-3xl border border-amber-500/30 bg-amber-500/10 space-y-3.5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-bold text-foreground block">{repayCustomer.name}</span>
-                    <span className="text-xs font-mono text-muted-foreground">{repayCustomer.phone}</span>
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="bg-black/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto outline-none bg-transparent border-0 shadow-none ring-0 w-screen h-screen max-w-none rounded-none cursor-pointer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDebtRepayOpen(false);
+            }
+          }}
+        >
+          <div
+            className="relative z-10 flex flex-col md:flex-row items-stretch justify-center gap-5 max-w-4xl w-full my-auto cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* MODEL 1 (Left Side): Settle Customer Debt Form */}
+            <div className="w-full md:w-[480px] lg:w-[500px] rounded-3xl p-6 sm:p-7 glass-panel border border-muted/30 shadow-2xl flex flex-col justify-between">
+              <form onSubmit={handleDebtRepaymentSubmit} className="space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-muted/15">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                      <HandCoinsIcon className="size-4" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-lg font-bold text-foreground tracking-tight">
+                        Settle Customer Debt
+                      </DialogTitle>
+                      <DialogDescription className="text-xs text-muted-foreground">
+                        {userShopName || "Branch"}
+                      </DialogDescription>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider block">Outstanding Debt</span>
-                    <span className="text-base font-extrabold font-mono text-amber-700 dark:text-amber-400">
-                      LKR {Number(repayCustomer.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setDebtRepayOpen(false)}
+                    className="rounded-full size-8 hover:bg-muted/20 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <XIcon className="size-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
+                </div>
+
+                {/* Search Input Box */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
+                    <span>Customer Name or Mobile *</span>
+                    {searchingRepay && (
+                      <span className="text-[11px] text-primary flex items-center gap-1 font-medium">
+                        <Loader2Icon className="size-3 animate-spin" /> Searching...
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Type name or phone (e.g. 077...)"
+                      value={repaySearchQuery}
+                      onChange={(e) => handleRepaySearchChange(e.target.value)}
+                      className="h-11 pl-10 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-medium"
+                      autoFocus
+                    />
                   </div>
                 </div>
 
-                {repayCustomer.shop && repayCustomer.shop._id !== userShopId && (
-                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs font-medium">
-                    <BuildingIcon className="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold">Cross-Branch Customer:</span> Belongs to{" "}
-                      <strong>{repayCustomer.shop.name} ({repayCustomer.shop.code})</strong>. Cash will be collected into your drawer ({userShopName || "this shop"}), and debt will be settled for {repayCustomer.shop.name} (submitted for approval).
+                {/* Selected Customer Details */}
+                {repayCustomer && (
+                  <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-sm font-bold text-foreground block truncate">{repayCustomer.name}</span>
+                        <span className="text-xs font-mono text-muted-foreground">{repayCustomer.phone}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Outstanding Debt</span>
+                        <span className="text-base font-bold font-mono text-amber-600 dark:text-amber-400">
+                          LKR {Number(repayCustomer.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
+
+                    {repayCustomer.currentBalance > 0 && (
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRepayAmount(repayCustomer.currentBalance)}
+                          className="h-7 px-2.5 rounded-xl text-xs font-semibold border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+                        >
+                          Pay Full Amount (LKR {Number(repayCustomer.currentBalance).toLocaleString()})
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <div className="flex justify-end pt-1">
+                {/* Repayment Form Fields */}
+                {repayCustomer && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
+                        <span>Payment Amount (LKR) *</span>
+                        <span className="text-[10px] text-muted-foreground font-normal lowercase">
+                          (max: LKR {Number(repayCustomer.currentBalance).toLocaleString()})
+                        </span>
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max={repayCustomer.currentBalance}
+                        step="any"
+                        value={repayAmount || ""}
+                        onChange={(e) => setRepayAmount(Number(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">
+                        Payment Method
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-surface/40 p-1.5 rounded-2xl border border-muted/20">
+                        <button
+                          type="button"
+                          onClick={() => setRepayMethod("CASH")}
+                          className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            repayMethod === "CASH"
+                              ? "bg-foreground text-background shadow-xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Cash
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRepayMethod("BANK_TRANSFER")}
+                          className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            repayMethod === "BANK_TRANSFER"
+                              ? "bg-foreground text-background shadow-xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Bank / Online
+                        </button>
+                      </div>
+                    </div>
+
+                    {repayMethod === "BANK_TRANSFER" && (
+                      <div className="space-y-1.5 p-3 rounded-2xl border border-muted/30 bg-surface/40">
+                        <label className="text-xs font-semibold text-muted-foreground">
+                          Target Bank Account
+                        </label>
+                        <select
+                          value={repayBankId || ""}
+                          onChange={(e) => setRepayBankId(e.target.value || null)}
+                          className="w-full h-10 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
+                        >
+                          <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+                            Select Bank Account...
+                          </option>
+                          {bankAccounts.map((b) => (
+                            <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+                              {b.bankName} - {b.accountNumber} ({b.accountName})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">
+                        Note / Receipt Reference (Optional)
+                      </label>
+                      <Input
+                        placeholder="e.g. Receipt number or note..."
+                        value={repayNote}
+                        onChange={(e) => setRepayNote(e.target.value)}
+                        className="h-10 rounded-2xl bg-surface/40 border-muted/30 text-xs font-medium"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="pt-3 border-t border-muted/15 flex items-center justify-end gap-2.5">
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    onClick={() => setRepayAmount(repayCustomer.currentBalance)}
-                    className="h-8 px-3 rounded-xl text-xs font-bold border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                    onClick={() => setDebtRepayOpen(false)}
+                    className="h-10 px-5 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer"
                   >
-                    Pay Full Amount (LKR {Number(repayCustomer.currentBalance).toLocaleString()})
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={submittingRepay || !repayCustomer || repayAmount <= 0}
+                    className="h-10 px-6 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-xs shadow-md gap-2 cursor-pointer"
+                  >
+                    {submittingRepay ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2Icon className="size-3.5" />
+                    )}
+                    <span>Record Repayment</span>
                   </Button>
                 </div>
-              </div>
-            )}
+              </form>
+            </div>
 
-            {!repayCustomer && repayPhone.trim().length >= 3 && !searchingCustomer && (
-              <div className="p-4 rounded-2xl border border-dashed border-muted/30 bg-surface/20 text-center text-xs text-muted-foreground">
-                No credit customer found with number &quot;{repayPhone}&quot; in this shop.
-              </div>
-            )}
-
-            {repayCustomer && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                    <span>Payment Amount (LKR) *</span>
-                    <span className="text-[10px] text-muted-foreground font-normal lowercase">(max: LKR {Number(repayCustomer.currentBalance).toLocaleString()})</span>
-                  </label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max={repayCustomer.currentBalance}
-                    step="any"
-                    value={repayAmount || ""}
-                    onChange={(e) => setRepayAmount(Number(e.target.value) || 0)}
-                    placeholder="0.00"
-                    className="h-11 sm:h-12 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400"
-                  />
+            {/* MODEL 2 (Right Side): Isolated Search Results Panel */}
+            <div className="w-full md:w-[320px] lg:w-[350px] rounded-3xl p-6 sm:p-7 glass-panel border border-muted/30 shadow-2xl flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-muted/15">
+                  <span className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <SearchIcon className="size-4 text-primary" />
+                    Search Results
+                  </span>
+                  {repaySearchResults.length > 0 && (
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {repaySearchResults.length} {repaySearchResults.length === 1 ? "match" : "matches"}
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Payment Method
-                  </label>
-                  <div className="flex items-center gap-1.5 bg-surface/40 p-1.5 rounded-2xl border border-muted/20">
-                    <button
-                      type="button"
-                      onClick={() => setRepayMethod("CASH")}
-                      className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${repayMethod === "CASH"
-                        ? "bg-foreground text-background shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      Cash
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRepayMethod("BANK_TRANSFER")}
-                      className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${repayMethod === "BANK_TRANSFER"
-                        ? "bg-foreground text-background shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      Bank / Online
-                    </button>
+                {searchingRepay ? (
+                  <div className="py-14 flex flex-col items-center justify-center text-center space-y-2 text-muted-foreground">
+                    <Loader2Icon className="size-5 animate-spin text-primary" />
+                    <span className="text-xs">Searching...</span>
                   </div>
-                </div>
+                ) : repaySearchQuery.trim().length >= 2 ? (
+                  repaySearchResults.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {repaySearchResults.slice(0, 3).map((c) => {
+                        const isSelected = repayCustomer?._id === c._id;
+                        const hasDebt = (c.currentBalance || 0) > 0;
+                        return (
+                          <div
+                            key={c._id}
+                            onClick={() => handleSelectRepayCustomer(c)}
+                            className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-amber-500 bg-amber-500/15 shadow-sm ring-1 ring-amber-500/30"
+                                : "border-muted/20 bg-surface/35 hover:bg-surface/70 hover:border-muted/40"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-foreground block truncate">
+                                  {c.name}
+                                </span>
+                                <span className="text-[11px] font-mono text-muted-foreground block">
+                                  {c.phone}
+                                </span>
+                              </div>
+                              {isSelected && (
+                                <CheckCircle2Icon className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                              )}
+                            </div>
 
-                {repayMethod === "BANK_TRANSFER" && (
-                  <div className="space-y-2 p-4 rounded-2xl border border-muted/30 bg-surface/40">
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Target Bank Account
-                    </label>
-                    <select
-                      value={repayBankId || ""}
-                      onChange={(e) => setRepayBankId(e.target.value || null)}
-                      className="w-full h-11 rounded-2xl border border-muted/30 bg-surface/50 text-foreground px-3 text-xs font-semibold outline-none focus:border-ring [color-scheme:light] dark:[color-scheme:dark]"
-                    >
-                      <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">Select Bank Account (or Leave Empty)...</option>
-                      {bankAccounts.map((b) => (
-                        <option key={b._id} value={b._id} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                          {b.bankName} - {b.accountNumber} ({b.accountName})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Note / Receipt Reference (Optional)
-                  </label>
-                  <Input
-                    placeholder="e.g. Settle bill balance / receipt number..."
-                    value={repayNote}
-                    onChange={(e) => setRepayNote(e.target.value)}
-                    className="h-11 rounded-2xl bg-surface/40 border-muted/30 text-xs sm:text-sm font-medium"
-                  />
-                </div>
-              </>
-            )}
-
-            <DialogFooter className="pt-4 border-t border-muted/20 flex items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => setDebtRepayOpen(false)} className="h-11 px-6 rounded-2xl border-muted/30 bg-surface/30 hover:bg-surface/60 text-foreground font-semibold text-xs cursor-pointer">
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={submittingRepay || !repayCustomer || repayAmount <= 0}
-                className="h-11 px-7 rounded-2xl bg-foreground text-background hover:opacity-90 font-semibold text-xs shadow-md gap-2 cursor-pointer"
-              >
-                {submittingRepay ? (
-                  <Loader2Icon className="size-3.5 animate-spin" />
+                            <div className="flex items-center justify-between pt-2 mt-1.5 border-t border-muted/15">
+                              <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                                {c.shop?.name || userShopName || "This branch"}
+                              </span>
+                              {hasDebt ? (
+                                <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400">
+                                  LKR {Number(c.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-emerald-500">
+                                  Settled (0.00)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-14 text-center space-y-1 px-2">
+                      <span className="text-xs font-semibold text-foreground block">
+                        No results found
+                      </span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        No customer matches &quot;{repaySearchQuery}&quot;
+                      </span>
+                    </div>
+                  )
                 ) : (
-                  <CheckCircle2Icon className="size-4" />
+                  <div className="py-14 text-center space-y-2 px-2">
+                    <div className="size-10 rounded-full bg-surface/50 border border-muted/20 flex items-center justify-center mx-auto text-muted-foreground">
+                      <SearchIcon className="size-5" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground block">
+                      Try search a credit customer
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block leading-relaxed">
+                      Enter a customer name or mobile number in the search bar.
+                    </span>
+                  </div>
                 )}
-                Collect &amp; Record Repayment
-              </Button>
-            </DialogFooter>
-          </form>
+              </div>
+
+              {repayCustomer && (
+                <div className="pt-3 border-t border-muted/15 text-[11px] text-muted-foreground flex items-center justify-between">
+                  <span>Selected:</span>
+                  <span className="font-semibold text-foreground truncate max-w-[180px]">{repayCustomer.name}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -3355,7 +3630,13 @@ export function FinancesView({
                 <Input
                   placeholder="e.g. 0771234567"
                   value={utilityCustomerPhone}
-                  onChange={(e) => setUtilityCustomerPhone(e.target.value)}
+                  onChange={(e) => setUtilityCustomerPhone(e.target.value.replace(/\s+/g, "").replace(/[^\d+]/g, "").slice(0, 10))}
+                  onKeyDown={(e) => {
+                    if (e.key === " " || e.key === "Spacebar") {
+                      e.preventDefault();
+                    }
+                  }}
+                  maxLength={10}
                   className="h-11 rounded-2xl bg-surface/40 border-muted/30 font-mono text-xs sm:text-sm font-semibold"
                 />
               </div>

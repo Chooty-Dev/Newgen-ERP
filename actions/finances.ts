@@ -853,6 +853,7 @@ export async function createCommunicationSaleBatchAction(payload: {
   paymentMethod?: "CASH" | "CREDIT" | "BANK_TRANSFER" | "ONLINE";
   customerName?: string;
   customerPhone?: string;
+  customerCreditId?: string | null;
   bankAccountId?: string | null;
   isRelatedToBranch?: boolean;
   relatedBranch?: string | null;
@@ -887,8 +888,17 @@ export async function createCommunicationSaleBatchAction(payload: {
   const isCredit = paymentMethod === "CREDIT";
 
   if (isCredit) {
-    if (!payload.customerPhone || !payload.customerPhone.trim()) {
+    const rawPhone = payload.customerPhone || "";
+    if (!rawPhone.trim()) {
       return { success: false, error: "Customer mobile number is required for credit sales." };
+    }
+    if (/\s/.test(rawPhone)) {
+      return { success: false, error: "Customer mobile number cannot contain spaces." };
+    }
+    const cleanPhone = rawPhone.replace(/\s+/g, "").trim();
+    const digitsOnly = cleanPhone.replace(/\D/g, "");
+    if (digitsOnly.length < 9 || digitsOnly.length > 12) {
+      return { success: false, error: "Please enter a valid 10-digit mobile number (e.g. 0771234567)." };
     }
     if (!payload.customerName || !payload.customerName.trim()) {
       return { success: false, error: "Customer name is required for credit sales." };
@@ -912,29 +922,58 @@ export async function createCommunicationSaleBatchAction(payload: {
     const recordStatus: "PENDING" | "APPROVED" = "APPROVED";
     const isLocked = true;
 
-    // Handle Customer Credit Account if CREDIT sale
+    // Handle Customer Credit Account if CREDIT sale (Prevent duplicates & validate existing records)
     let customerCreditDoc: any = null;
+    let normalizedPhone = "";
     if (isCredit) {
-      const cleanPhone = payload.customerPhone!.trim();
+      const rawPhone = payload.customerPhone || "";
+      const cleanPhone = rawPhone.replace(/\s+/g, "").trim();
       const cleanName = payload.customerName!.trim();
 
-      customerCreditDoc = await CustomerCredit.findOne({
-        shop: shop._id,
-        phone: cleanPhone,
-      });
+      const digitsOnly = cleanPhone.replace(/\D/g, "");
+      const local9Digits = digitsOnly.startsWith("94")
+        ? digitsOnly.slice(2)
+        : digitsOnly.startsWith("0")
+        ? digitsOnly.slice(1)
+        : digitsOnly;
+      normalizedPhone = `0${local9Digits}`;
 
+      // 1. If explicit customerCreditId passed, find by ID first
+      if (payload.customerCreditId) {
+        customerCreditDoc = await CustomerCredit.findOne({
+          _id: payload.customerCreditId,
+          shop: shop._id,
+        });
+      }
+
+      // 2. If not found by ID, look up by normalized phone with flexible regex
+      // (Matches existing DB records regardless of whether they have spaces or dashes)
       if (!customerCreditDoc) {
+        const spacedPattern = local9Digits.split("").join("[\\s\\-]*");
+        const phoneMatchRegex = new RegExp(`^(?:\\+?94|0)?[\\s\\-]*${spacedPattern}$`, "i");
+
+        customerCreditDoc = await CustomerCredit.findOne({
+          shop: shop._id,
+          phone: { $regex: phoneMatchRegex },
+        }).sort({ currentBalance: -1, lastActivityDate: -1 });
+      }
+
+      // 3. Reuse existing record or create new if not exists
+      if (customerCreditDoc) {
+        if (cleanName && (!customerCreditDoc.name || customerCreditDoc.name === "Unknown")) {
+          customerCreditDoc.name = cleanName;
+        }
+      } else {
+        // Save new customer with clean, standardized 10-digit phone (no spaces)
         customerCreditDoc = await CustomerCredit.create({
           shop: shop._id,
           name: cleanName,
-          phone: cleanPhone,
+          phone: normalizedPhone,
           totalCredit: 0,
           totalPaid: 0,
           currentBalance: 0,
           lastActivityDate: new Date(),
         });
-      } else if (cleanName && customerCreditDoc.name !== cleanName) {
-        customerCreditDoc.name = cleanName;
       }
     }
 
@@ -1088,7 +1127,7 @@ export async function createCommunicationSaleBatchAction(payload: {
         // Customer Credit fields
         customerCredit: customerCreditDoc?._id || null,
         customerName: customerCreditDoc?.name || payload.customerName || null,
-        customerPhone: customerCreditDoc?.phone || payload.customerPhone || null,
+        customerPhone: customerCreditDoc?.phone ? customerCreditDoc.phone.replace(/\s+/g, "") : (normalizedPhone || null),
 
         // Communication fields
         isCommunicationItem: true,
@@ -1316,6 +1355,8 @@ export async function settleInterBranchCashAction(formData: unknown) {
     });
 
     revalidatePath("/dashboard/admin/shops");
+    revalidatePath("/dashboard/staff/finances");
+    revalidatePath("/dashboard/staff/dashboard");
     revalidatePath(`/dashboard/admin/shops/${holdingShopId}`);
     if (targetShopId) {
       revalidatePath(`/dashboard/admin/shops/${targetShopId}`);
